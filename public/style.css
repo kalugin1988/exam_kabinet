@@ -1,0 +1,502 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background-color: #f5f5f5;
+    padding: 20px;
+}
+
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.controls {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.control-buttons {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s;
+    text-decoration: none;
+    display: inline-block;
+    text-align: center;
+}
+
+.btn-primary { background: #007bff; color: white; }
+.btn-success { background: #28a745; color: white; }
+.btn-warning { background: #ffc107; color: black; }
+.btn-info { background: #17a2b8; color: white; }
+.btn-danger { background: #dc3545; color: white; }
+
+.btn:hover {
+    opacity: 0.9;
+}
+
+.classrooms-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 30px;
+    justify-content: center;
+}
+
+.classroom {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    min-width: 400px;
+}
+
+.classroom-header {
+    text-align: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #eee;
+}
+
+.classroom-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #333;
+}
+
+.classroom-info {
+    font-size: 14px;
+    color: #666;
+    margin-top: 5px;
+}
+
+/* ОБНОВЛЕННЫЕ СТИЛИ ДЛЯ СЕТКИ ПАРТ */
+.classroom-layout {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    overflow-x: auto;
+}
+
+.desks-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: min-content;
+}
+
+/* Строка содержит все парты с одинаковым номером */
+.desks-row {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    min-height: 60px;
+}
+
+/* Контейнер для одной парты (левое и правое место РЯДОМ) */
+.desk-pair {
+    display: flex;
+    gap: 2px;
+    min-width: 120px;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 3px;
+}
+
+/* Отдельное место в парте */
+.desk {
+    width: 55px;
+    height: 45px;
+    background: #e9ecef;
+    border: 1px solid #adb5bd;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    position: relative;
+    transition: all 0.3s ease;
+    padding: 2px;
+    text-align: center;
+}
+
+.desk:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.desk.occupied {
+    color: white;
+    font-weight: bold;
+}
+
+.desk-place {
+    position: absolute;
+    top: 1px;
+    left: 2px;
+    font-size: 7px;
+    color: rgba(0,0,0,0.7);
+    background: rgba(255,255,255,0.9);
+    padding: 1px 2px;
+    border-radius: 2px;
+    font-weight: bold;
+}
+
+/* Заголовки строк (номера парт) */
+.row-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 25px;
+    font-weight: bold;
+    color: #333;
+    font-size: 12px;
+    margin-right: 10px;
+}
+
+/* Заголовки столбцов (буквы) */
+.column-headers {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 5px;
+    margin-left: 35px; /* Отступ для заголовков строк */
+}
+
+.column-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-width: 120px;
+    padding: 0 8px;
+}
+
+.column-header span {
+    font-size: 10px;
+    font-weight: bold;
+    color: #666;
+    text-align: center;
+    width: 55px;
+}
+
+/* Контейнер для сетки с заголовками */
+.desks-grid-with-headers {
+    display: flex;
+    flex-direction: column;
+}
+
+.grid-content {
+    display: flex;
+}
+
+/* Модальные окна */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: white;
+    margin: 15% auto;
+    padding: 20px;
+    border-radius: 10px;
+    width: 300px;
+    max-width: 90%;
+    position: relative;
+}
+
+.close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    position: absolute;
+    right: 15px;
+    top: 10px;
+}
+
+.close:hover {
+    color: black;
+}
+
+/* Формы */
+.classroom-form {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.classroom-form h3 {
+    margin-bottom: 15px;
+    color: #333;
+}
+
+.classroom-form form {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: end;
+}
+
+.classroom-form input {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 14px;
+}
+
+.classroom-form input:focus {
+    outline: none;
+    border-color: #007bff;
+}
+
+.classrooms-list {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.classroom-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    border: 1px solid #eee;
+    border-radius: 5px;
+    margin-bottom: 10px;
+}
+
+.classroom-item:hover {
+    background: #f9f9f9;
+}
+
+.classroom-details {
+    flex: 1;
+}
+
+.classroom-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.student-info {
+    padding: 10px;
+}
+
+.student-info h4 {
+    margin-bottom: 10px;
+    color: #333;
+}
+
+.student-info p {
+    margin: 5px 0;
+    font-size: 14px;
+}
+
+.empty-place {
+    color: #666;
+    font-style: italic;
+}
+
+.desk.dragging {
+    opacity: 0.5;
+}
+
+.desk.drop-zone {
+    border: 2px dashed #007bff;
+    background: #e3f2fd;
+}
+
+/* Скрытый input файла */
+input[type="file"] {
+    display: none;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .container {
+        padding: 10px;
+    }
+    
+    .control-buttons {
+        flex-direction: column;
+    }
+    
+    .btn {
+        width: 100%;
+        margin-bottom: 5px;
+    }
+    
+    .classroom {
+        min-width: 100%;
+    }
+    
+    .desks-row {
+        gap: 10px;
+    }
+    
+    .desk-pair {
+        min-width: 100px;
+    }
+    
+    .desk {
+        width: 48px;
+        height: 40px;
+        font-size: 8px;
+    }
+    
+    .column-headers {
+        margin-left: 30px;
+        gap: 10px;
+    }
+    
+    .column-header {
+        min-width: 100px;
+    }
+    
+    .column-header span {
+        width: 48px;
+    }
+}
+
+@media (max-width: 480px) {
+    .desk-pair {
+        min-width: 90px;
+    }
+    
+    .desk {
+        width: 43px;
+        height: 35px;
+        font-size: 7px;
+    }
+    
+    .column-headers {
+        margin-left: 25px;
+        gap: 8px;
+    }
+    
+    .column-header {
+        min-width: 90px;
+    }
+    
+    .column-header span {
+        width: 43px;
+    }
+    
+    .row-header {
+        min-width: 20px;
+        font-size: 10px;
+    }
+}
+/* Стили для модальных окон */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: white;
+    margin: 15% auto;
+    padding: 20px;
+    border-radius: 10px;
+    width: 300px;
+    max-width: 90%;
+    position: relative;
+}
+
+.close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    position: absolute;
+    right: 15px;
+    top: 10px;
+}
+
+.close:hover {
+    color: black;
+}
+
+/* Стили для формы */
+.form-control {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 14px;
+    margin-bottom: 10px;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #007bff;
+}
+
+/* Стили для кнопок */
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s;
+    text-decoration: none;
+    display: inline-block;
+    text-align: center;
+}
+
+.btn-primary { background: #007bff; color: white; }
+.btn-success { background: #28a745; color: white; }
+.btn-warning { background: #ffc107; color: black; }
+.btn-info { background: #17a2b8; color: white; }
+.btn-danger { background: #dc3545; color: white; }
+.btn-secondary { background: #6c757d; color: white; }
+
+.btn:hover {
+    opacity: 0.9;
+}

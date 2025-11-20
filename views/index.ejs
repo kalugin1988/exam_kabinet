@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Система рассадки учеников</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="controls">
+            <div class="control-buttons">
+                <button class="btn btn-primary" onclick="showSubjectModal()">Сформировать посадку</button>
+                <button class="btn btn-danger" onclick="clearSeating()">Очистить посадку</button>
+                <button class="btn btn-success" onclick="exportToJson()">Сохранить в JSON</button>
+                <button class="btn btn-warning" onclick="document.getElementById('importFile').click()">Загрузить из JSON</button>
+                <a href="/kabinet" class="btn btn-info">Управление кабинетами</a>
+            </div>
+            <input type="file" id="importFile" accept=".json" style="display: none" onchange="importFromJson(this.files[0])">
+        </div>
+        <div id="classroomsContainer" class="classrooms-container"></div>
+    </div>
+
+    <div id="subjectModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeSubjectModal()">&times;</span>
+            <h3>Выберите предмет</h3>
+            <select id="subjectSelect">
+                <% subjects.forEach(function(subject) { %>
+                    <option value="<%= subject %>"><%= subject %></option>
+                <% }); %>
+            </select>
+            <button class="btn btn-primary" onclick="generateSeating()">Сформировать</button>
+        </div>
+    </div>
+
+    <div id="studentModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeStudentModal()">&times;</span>
+            <div id="studentInfo"></div>
+        </div>
+    </div>
+
+    <script>
+        const classroomsData = <%- JSON.stringify(classrooms) %>;
+        const studentsData = <%- JSON.stringify(students) %>;
+        const parallelColors = <%- JSON.stringify(parallelColors) %>;
+    </script>
+    <script src="script.js"></script>
+</body>
+</html>
