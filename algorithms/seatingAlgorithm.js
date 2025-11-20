@@ -1,4 +1,4 @@
-// Алгоритм рассадки учеников по кабинетам
+// Алгоритм рассадки учеников по кабинетами
 
 // Вспомогательные функции
 const russianLetters = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З', 'И', 'К', 'Л', 'М'];
@@ -6,7 +6,7 @@ const russianLetters = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З', 'И', '�
 /**
  * Рассчитывает все возможные места в кабинете
  */
-function calculateClassroomPlaces(classroom, logFunction = console.log) {
+function calculateClassroomPlaces(classroom, blockedPlaces = [], logFunction = console.log) {
   const log = logFunction;
   const rows = classroom.количество_рядов_парт;
   const totalDesks = classroom.количество_парт;
@@ -44,16 +44,26 @@ function calculateClassroomPlaces(classroom, logFunction = console.log) {
       const placeLeft = `${deskNumber}${leftLetter}`;
       const placeRight = `${deskNumber}${rightLetter}`;
       
-      places.push(placeLeft);
-      places.push(placeRight);
+      // Добавляем только незаблокированные места
+      if (!blockedPlaces.includes(placeLeft)) {
+        places.push(placeLeft);
+      } else {
+        log(`    Место ${placeLeft} заблокировано, пропускаем`);
+      }
       
-      log(`    Парта ${deskNumber} (ряд ${row}): места ${placeLeft} и ${placeRight}`);
+      if (!blockedPlaces.includes(placeRight)) {
+        places.push(placeRight);
+      } else {
+        log(`    Место ${placeRight} заблокировано, пропускаем`);
+      }
+      
+      log(`    Парта ${deskNumber} (ряд ${row}): места ${placeLeft} и ${placeRight} ${blockedPlaces.includes(placeLeft) || blockedPlaces.includes(placeRight) ? '(заблокированы)' : ''}`);
     }
     
     if (deskCounter >= totalDesks) break;
   }
   
-  log(`  Итого мест в кабинете ${classroom.номер_кабинета}: ${places.length}`);
+  log(`  Итого доступных мест в кабинете ${classroom.номер_кабинета}: ${places.length} (заблокировано: ${blockedPlaces.length})`);
   return places;
 }
 
@@ -323,7 +333,7 @@ function distributeParallelStudents(students, classrooms, parallel, classroomOcc
 /**
  * Основная функция генерации рассадки
  */
-function generateSeating(students, classrooms, logFunction = console.log) {
+function generateSeating(students, classrooms, blockedPlacesByClassroom = {}, logFunction = console.log) {
   const log = logFunction;
   
   log('=== ЗАПУСК АЛГОРИТМА РАССАДКИ ===');
@@ -331,17 +341,18 @@ function generateSeating(students, classrooms, logFunction = console.log) {
   const seating = [];
   const unplacedStudents = [];
   
-  // 1. Рассчитываем общее количество доступных мест
+  // 1. Рассчитываем общее количество доступных мест (исключая заблокированные)
   const classroomPlaces = {};
   let totalAvailableSeats = 0;
   
-  log('\nРАСЧЕТ КОЛИЧЕСТВА МЕСТ В КАБИНЕТАХ:');
+  log('\nРАСЧЕТ КОЛИЧЕСТВА МЕСТ В КАБИНЕТАХ (с учетом заблокированных мест):');
   classrooms.forEach(classroom => {
-    const places = calculateClassroomPlaces(classroom, log);
+    const blockedPlaces = blockedPlacesByClassroom[classroom.номер_кабинета] || [];
+    const places = calculateClassroomPlaces(classroom, blockedPlaces, log);
     classroomPlaces[classroom.номер_кабинета] = places;
     totalAvailableSeats += places.length;
     
-    log(`Кабинет ${classroom.номер_кабинета}: ${places.length} мест`);
+    log(`Кабинет ${classroom.номер_кабинета}: ${places.length} доступных мест (заблокировано: ${blockedPlaces.length})`);
   });
   
   // 2. Проверяем возможность размещения
@@ -351,7 +362,7 @@ function generateSeating(students, classrooms, logFunction = console.log) {
   log(`Кабинетов: ${classrooms.length}`);
   
   if (students.length > totalAvailableSeats) {
-    log(`❌ ВНИМАНИЕ: Учеников (${students.length}) больше чем мест (${totalAvailableSeats})!`);
+    log(`❌ ВНИМАНИЕ: Учеников (${students.length}) больше чем доступных мест (${totalAvailableSeats})!`);
     log(`❌ Невозможно разместить всех учеников. Максимум можно разместить: ${totalAvailableSeats}`);
   } else {
     log(`✅ Мест достаточно для размещения всех учеников`);
@@ -470,8 +481,9 @@ function generateSeating(students, classrooms, logFunction = console.log) {
     const totalPlaces = occupancy.allPlaces.length;
     const occupiedCount = occupancy.occupiedPlaces.size;
     const freeCount = totalPlaces - occupiedCount;
+    const blockedCount = blockedPlacesByClassroom[classroom.номер_кабинета]?.length || 0;
     
-    log(`Кабинет ${classroom.номер_кабинета}: ${occupiedCount}/${totalPlaces} мест занято (${freeCount} свободно)`);
+    log(`Кабинет ${classroom.номер_кабинета}: ${occupiedCount}/${totalPlaces} мест занято (${freeCount} свободно, ${blockedCount} заблокировано)`);
   });
   
   return {

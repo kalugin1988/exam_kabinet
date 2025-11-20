@@ -8,26 +8,20 @@
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>Управление кабинетами</h1>
-            <a href="/" class="btn btn-primary">На главную</a>
-        </div>
-        
+        <header class="header">
+            <h1>🏫 Управление кабинетами</h1>
+            <nav>
+                <a href="/" class="btn btn-primary">Вернуться к рассадке</a>
+            </nav>
+        </header>
+
         <div class="classroom-form">
-            <h3>Добавить кабинет</h3>
+            <h3>Добавить новый кабинет</h3>
             <form id="addClassroomForm">
-                <div class="form-group">
-                    <input type="number" name="номер_кабинета" placeholder="Номер кабинета" required min="1">
-                </div>
-                <div class="form-group">
-                    <input type="number" name="количество_парт" placeholder="Количество парт" required min="1">
-                </div>
-                <div class="form-group">
-                    <input type="number" name="количество_рядов_парт" placeholder="Количество рядов" required min="1">
-                </div>
-                <div class="form-group">
-                    <input type="number" name="этаж" placeholder="Этаж" required min="1">
-                </div>
+                <input type="number" name="номер_кабинета" placeholder="Номер кабинета" required min="1">
+                <input type="number" name="количество_парт" placeholder="Количество парт" required min="1">
+                <input type="number" name="количество_рядов_парт" placeholder="Количество рядов" required min="1">
+                <input type="number" name="этаж" placeholder="Этаж" required min="1">
                 <button type="submit" class="btn btn-success">Добавить кабинет</button>
             </form>
         </div>
@@ -35,14 +29,13 @@
         <div class="classrooms-list">
             <h3>Список кабинетов</h3>
             <div id="classroomsTable">
-                <p>Загрузка...</p>
+                <!-- Список кабинетов будет здесь -->
             </div>
         </div>
     </div>
 
     <script>
-        // Передаем данные из сервера в клиентский код
-        let classroomsData = <%- JSON.stringify(classrooms) %>;
+        const classroomsData = <%- JSON.stringify(classrooms) %>;
     </script>
     <script src="kabinet.js"></script>
 </body>

@@ -8,6 +8,7 @@ body {
     font-family: 'Arial', sans-serif;
     background-color: #f5f5f5;
     padding: 20px;
+    line-height: 1.6;
 }
 
 .container {
@@ -20,6 +21,13 @@ body {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #ddd;
+}
+
+.header h1 {
+    color: #333;
+    font-size: 28px;
 }
 
 .controls {
@@ -38,15 +46,22 @@ body {
 }
 
 .btn {
-    padding: 10px 20px;
+    padding: 12px 20px;
     border: none;
-    border-radius: 5px;
+    border-radius: 6px;
     cursor: pointer;
     font-size: 14px;
-    transition: background-color 0.3s;
+    font-weight: 500;
+    transition: all 0.3s ease;
     text-decoration: none;
     display: inline-block;
     text-align: center;
+    min-width: 120px;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 .btn-primary { background: #007bff; color: white; }
@@ -54,15 +69,29 @@ body {
 .btn-warning { background: #ffc107; color: black; }
 .btn-info { background: #17a2b8; color: white; }
 .btn-danger { background: #dc3545; color: white; }
+.btn-secondary { background: #6c757d; color: white; }
+.btn-outline-primary { 
+    background: transparent; 
+    color: #007bff; 
+    border: 2px solid #007bff; 
+}
 
-.btn:hover {
+.btn:hover:not(:disabled) {
     opacity: 0.9;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 12px;
+    min-width: auto;
 }
 
 .classrooms-container {
     display: flex;
     flex-wrap: wrap;
-    gap: 30px;
+    gap: 25px;
     justify-content: center;
 }
 
@@ -70,150 +99,178 @@ body {
     background: white;
     padding: 20px;
     border-radius: 10px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    min-width: 400px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    min-width: 420px;
+    transition: transform 0.3s ease;
+}
+
+.classroom:hover {
+    transform: translateY(-5px);
 }
 
 .classroom-header {
     text-align: center;
-    margin-bottom: 15px;
-    padding-bottom: 10px;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
     border-bottom: 2px solid #eee;
 }
 
 .classroom-title {
-    font-size: 18px;
+    font-size: 20px;
     font-weight: bold;
     color: #333;
+    margin-bottom: 5px;
 }
 
 .classroom-info {
     font-size: 14px;
     color: #666;
-    margin-top: 5px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
 }
 
-/* ОБНОВЛЕННЫЕ СТИЛИ ДЛЯ СЕТКИ ПАРТ */
+/* Стили для сетки парт */
 .classroom-layout {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 10px;
-    padding: 10px;
+    padding: 15px;
     overflow-x: auto;
 }
 
-.desks-grid {
+.desks-grid-with-headers {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    min-width: min-content;
+    width: 100%;
 }
 
-/* Строка содержит все парты с одинаковым номером */
-.desks-row {
-    display: flex;
-    gap: 15px;
-    align-items: center;
-    min-height: 60px;
-}
-
-/* Контейнер для одной парты (левое и правое место РЯДОМ) */
-.desk-pair {
-    display: flex;
-    gap: 2px;
-    min-width: 120px;
-    background: #f8f9fa;
-    border: 1px solid #dee2e6;
-    border-radius: 6px;
-    padding: 3px;
-}
-
-/* Отдельное место в парте */
-.desk {
-    width: 55px;
-    height: 45px;
-    background: #e9ecef;
-    border: 1px solid #adb5bd;
-    border-radius: 4px;
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: 9px;
-    position: relative;
-    transition: all 0.3s ease;
-    padding: 2px;
-    text-align: center;
-}
-
-.desk:hover {
-    transform: scale(1.05);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-}
-
-.desk.occupied {
-    color: white;
-    font-weight: bold;
-}
-
-.desk-place {
-    position: absolute;
-    top: 1px;
-    left: 2px;
-    font-size: 7px;
-    color: rgba(0,0,0,0.7);
-    background: rgba(255,255,255,0.9);
-    padding: 1px 2px;
-    border-radius: 2px;
-    font-weight: bold;
-}
-
-/* Заголовки строк (номера парт) */
-.row-header {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 25px;
-    font-weight: bold;
-    color: #333;
-    font-size: 12px;
-    margin-right: 10px;
-}
-
-/* Заголовки столбцов (буквы) */
 .column-headers {
     display: flex;
     gap: 15px;
-    margin-bottom: 5px;
-    margin-left: 35px; /* Отступ для заголовков строк */
+    margin-bottom: 10px;
+    margin-left: 45px;
 }
 
 .column-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    min-width: 120px;
-    padding: 0 8px;
+    min-width: 125px;
+    padding: 0 10px;
+    font-weight: bold;
+    color: #555;
 }
 
 .column-header span {
-    font-size: 10px;
-    font-weight: bold;
-    color: #666;
+    font-size: 12px;
     text-align: center;
     width: 55px;
 }
 
-/* Контейнер для сетки с заголовками */
-.desks-grid-with-headers {
-    display: flex;
-    flex-direction: column;
-}
-
 .grid-content {
     display: flex;
+}
+
+.desks-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: min-content;
+}
+
+.desks-row {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    min-height: 65px;
+}
+
+.row-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 30px;
+    font-weight: bold;
+    color: #333;
+    font-size: 13px;
+    margin-right: 15px;
+}
+
+.desk-pair {
+    display: flex;
+    gap: 3px;
+    min-width: 125px;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 4px;
+    transition: all 0.3s ease;
+}
+
+.desk-pair:hover {
+    background: #e9ecef;
+}
+
+.desk {
+    width: 78px;
+    height: 68px;
+    background: #e9ecef;
+    border: 2px solid #adb5bd;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    position: relative;
+    transition: all 0.3s ease;
+    padding: 3px;
+    text-align: center;
+    font-weight: 500;
+}
+
+.desk:hover {
+    transform: scale(1.08);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 10;
+}
+
+.desk.occupied {
+    color: white;
+    font-weight: bold;
+    border-color: transparent;
+}
+
+.desk.empty-desk {
+    background: transparent;
+    border: 2px dashed #ccc;
+    cursor: default;
+}
+
+.desk.empty-desk:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+.desk-place {
+    position: absolute;
+    top: 2px;
+    left: 3px;
+    font-size: 8px;
+    color: rgba(0,0,0,0.7);
+    background: rgba(255,255,255,0.95);
+    padding: 1px 3px;
+    border-radius: 3px;
+    font-weight: bold;
+}
+
+.desk.drop-zone {
+    border: 2px dashed #007bff;
+    background: #e3f2fd;
 }
 
 /* Модальные окна */
@@ -226,16 +283,30 @@ body {
     width: 100%;
     height: 100%;
     background-color: rgba(0,0,0,0.5);
+    backdrop-filter: blur(5px);
 }
 
 .modal-content {
     background-color: white;
-    margin: 15% auto;
-    padding: 20px;
-    border-radius: 10px;
-    width: 300px;
+    margin: 10% auto;
+    padding: 25px;
+    border-radius: 12px;
+    width: 400px;
     max-width: 90%;
     position: relative;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    animation: modalAppear 0.3s ease-out;
+}
+
+@keyframes modalAppear {
+    from {
+        opacity: 0;
+        transform: translateY(-50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .close {
@@ -245,8 +316,9 @@ body {
     font-weight: bold;
     cursor: pointer;
     position: absolute;
-    right: 15px;
-    top: 10px;
+    right: 20px;
+    top: 15px;
+    transition: color 0.3s ease;
 }
 
 .close:hover {
@@ -256,59 +328,85 @@ body {
 /* Формы */
 .classroom-form {
     background: white;
-    padding: 20px;
+    padding: 25px;
     border-radius: 10px;
-    margin-bottom: 20px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    margin-bottom: 25px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
 }
 
 .classroom-form h3 {
-    margin-bottom: 15px;
+    margin-bottom: 20px;
     color: #333;
+    font-size: 22px;
 }
 
 .classroom-form form {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
     align-items: end;
 }
 
-.classroom-form input {
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 5px;
+.form-control {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #ddd;
+    border-radius: 6px;
     font-size: 14px;
+    margin-bottom: 0;
+    transition: border-color 0.3s ease;
 }
 
-.classroom-form input:focus {
+.form-control:focus {
     outline: none;
     border-color: #007bff;
+    box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
 }
 
 .classrooms-list {
     background: white;
-    padding: 20px;
+    padding: 25px;
     border-radius: 10px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.classrooms-list h3 {
+    margin-bottom: 20px;
+    color: #333;
+    font-size: 22px;
 }
 
 .classroom-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 15px;
+    padding: 18px;
     border: 1px solid #eee;
-    border-radius: 5px;
-    margin-bottom: 10px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    transition: all 0.3s ease;
 }
 
 .classroom-item:hover {
     background: #f9f9f9;
+    border-color: #ddd;
+    transform: translateX(5px);
 }
 
 .classroom-details {
     flex: 1;
+}
+
+.classroom-details strong {
+    font-size: 18px;
+    color: #333;
+    display: block;
+    margin-bottom: 5px;
+}
+
+.classroom-info {
+    font-size: 14px;
+    color: #666;
 }
 
 .classroom-actions {
@@ -317,36 +415,70 @@ body {
 }
 
 .student-info {
-    padding: 10px;
+    padding: 15px 0;
 }
 
 .student-info h4 {
-    margin-bottom: 10px;
+    margin-bottom: 15px;
     color: #333;
+    font-size: 20px;
 }
 
 .student-info p {
-    margin: 5px 0;
+    margin: 8px 0;
+    font-size: 15px;
+    color: #555;
+}
+
+.student-info strong {
+    color: #333;
+}
+
+/* Стили для доступных мест */
+.available-desks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+    margin: 20px 0;
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 10px;
+    border: 1px solid #eee;
+    border-radius: 8px;
+}
+
+.desk-option {
+    padding: 10px 15px;
     font-size: 14px;
+    transition: all 0.3s ease;
 }
 
-.empty-place {
-    color: #666;
-    font-style: italic;
+.desk-option:hover {
+    transform: translateY(-2px);
 }
 
-.desk.dragging {
-    opacity: 0.5;
+/* Уведомления */
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 25px;
+    border-radius: 8px;
+    z-index: 10000;
+    animation: slideIn 0.3s ease-out;
+    font-weight: 500;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
 }
 
-.desk.drop-zone {
-    border: 2px dashed #007bff;
-    background: #e3f2fd;
-}
-
-/* Скрытый input файла */
-input[type="file"] {
-    display: none;
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
 }
 
 /* Адаптивность */
@@ -355,13 +487,19 @@ input[type="file"] {
         padding: 10px;
     }
     
+    .header {
+        flex-direction: column;
+        gap: 15px;
+        text-align: center;
+    }
+    
     .control-buttons {
         flex-direction: column;
     }
     
     .btn {
         width: 100%;
-        margin-bottom: 5px;
+        margin-bottom: 8px;
     }
     
     .classroom {
@@ -373,130 +511,244 @@ input[type="file"] {
     }
     
     .desk-pair {
-        min-width: 100px;
+        min-width: 110px;
     }
     
     .desk {
-        width: 48px;
-        height: 40px;
-        font-size: 8px;
+        width: 52px;
+        height: 42px;
+        font-size: 9px;
     }
     
     .column-headers {
-        margin-left: 30px;
+        margin-left: 40px;
         gap: 10px;
     }
     
     .column-header {
-        min-width: 100px;
+        min-width: 110px;
     }
     
     .column-header span {
-        width: 48px;
+        width: 52px;
+    }
+    
+    .classroom-form form {
+        grid-template-columns: 1fr;
+    }
+    
+    .classroom-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+    }
+    
+    .classroom-actions {
+        width: 100%;
+        justify-content: space-between;
     }
 }
 
 @media (max-width: 480px) {
     .desk-pair {
-        min-width: 90px;
+        min-width: 100px;
     }
     
     .desk {
-        width: 43px;
-        height: 35px;
-        font-size: 7px;
+        width: 48px;
+        height: 38px;
+        font-size: 8px;
     }
     
     .column-headers {
-        margin-left: 25px;
+        margin-left: 35px;
         gap: 8px;
     }
     
     .column-header {
-        min-width: 90px;
+        min-width: 100px;
     }
     
     .column-header span {
-        width: 43px;
+        width: 48px;
     }
     
     .row-header {
-        min-width: 20px;
-        font-size: 10px;
+        min-width: 25px;
+        font-size: 11px;
+    }
+    
+    .modal-content {
+        margin: 5% auto;
+        padding: 20px;
     }
 }
-/* Стили для модальных окон */
-.modal {
-    display: none;
-    position: fixed;
-    z-index: 1000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0,0,0,0.5);
+
+/* Стили для состояния загрузки */
+.loading {
+    opacity: 0.7;
+    pointer-events: none;
 }
 
-.modal-content {
-    background-color: white;
-    margin: 15% auto;
-    padding: 20px;
-    border-radius: 10px;
-    width: 300px;
-    max-width: 90%;
-    position: relative;
-}
-
-.close {
-    color: #aaa;
-    float: right;
-    font-size: 28px;
-    font-weight: bold;
-    cursor: pointer;
+.loading::after {
+    content: '';
     position: absolute;
-    right: 15px;
-    top: 10px;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
 }
 
-.close:hover {
-    color: black;
+@keyframes spin {
+    0% { transform: translate(-50%, -50%) rotate(0deg); }
+    100% { transform: translate(-50%, -50%) rotate(360deg); }
 }
 
-/* Стили для формы */
-.form-control {
-    width: 100%;
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    font-size: 14px;
-    margin-bottom: 10px;
-}
-
-.form-control:focus {
-    outline: none;
-    border-color: #007bff;
-}
-
-/* Стили для кнопок */
-.btn {
-    padding: 10px 20px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 14px;
-    transition: background-color 0.3s;
-    text-decoration: none;
-    display: inline-block;
+.no-data {
     text-align: center;
+    color: #666;
+    font-style: italic;
+    padding: 40px;
+    font-size: 18px;
+}
+/* Стили для модальных окон перемещения */
+.student-details, .place-details {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 15px 0;
 }
 
-.btn-primary { background: #007bff; color: white; }
-.btn-success { background: #28a745; color: white; }
-.btn-warning { background: #ffc107; color: black; }
-.btn-info { background: #17a2b8; color: white; }
-.btn-danger { background: #dc3545; color: white; }
-.btn-secondary { background: #6c757d; color: white; }
+.action-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
 
-.btn:hover {
-    opacity: 0.9;
+.classroom-section {
+    margin: 15px 0;
+    padding: 15px;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+}
+
+.classroom-section h6 {
+    margin-bottom: 10px;
+    color: #495057;
+    font-size: 16px;
+}
+
+.free-places {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 8px;
+}
+
+.place-option {
+    padding: 8px 12px;
+    font-size: 12px;
+}
+
+.students-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    max-height: 400px;
+    overflow-y: auto;
+    margin: 15px 0;
+}
+
+.student-option {
+    margin-bottom: 8px;
+}
+
+.student-btn {
+    width: 100%;
+    text-align: left;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.student-name {
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.student-details {
+    font-size: 12px;
+    color: #666;
+    margin-top: 4px;
+}
+
+.move-options {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+/* Адаптивность для модальных окон */
+@media (max-width: 768px) {
+    .action-buttons {
+        flex-direction: column;
+    }
+    
+    .free-places {
+        grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+    }
+    
+    .students-grid {
+        grid-template-columns: 1fr;
+    }
+}
+/* Стили для заблокированных мест */
+.desk.blocked {
+    background: #6c757d !important;
+    color: white;
+    cursor: not-allowed;
+    position: relative;
+    opacity: 0.7;
+}
+
+.desk.blocked::before {
+    content: "🚫";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 16px;
+    z-index: 2;
+}
+
+.blocked-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    z-index: 1;
+}
+
+.desk.blocked .desk-place {
+    background: rgba(255, 255, 255, 0.3);
+    color: white;
+}
+
+/* Стили для счетчика заблокированных мест */
+.blocked-count {
+    font-size: 14px;
+    font-weight: bold;
+}
+
+/* Адаптивность для заблокированных мест */
+@media (max-width: 768px) {
+    .desk.blocked::before {
+        font-size: 14px;
+    }
 }

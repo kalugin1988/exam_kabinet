@@ -24,8 +24,8 @@ function renderClassroomsTable() {
                 </div>
             </div>
             <div class="classroom-actions">
-                <button class="btn btn-warning" onclick="editClassroom(${classroom.id})">Редактировать</button>
-                <button class="btn btn-danger" onclick="deleteClassroom(${classroom.id})">Удалить</button>
+                <button class="btn btn-warning btn-sm" onclick="editClassroom(${classroom.id})">Редактировать</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteClassroom(${classroom.id})">Удалить</button>
             </div>
         </div>
     `).join('');
@@ -51,6 +51,11 @@ async function handleAddClassroom(event) {
     }
     
     try {
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalText = submitBtn.textContent;
+        submitBtn.textContent = 'Добавление...';
+        submitBtn.disabled = true;
+        
         const response = await fetch('/api/classrooms', {
             method: 'POST',
             headers: {
@@ -60,6 +65,9 @@ async function handleAddClassroom(event) {
         });
         
         const result = await response.json();
+        
+        submitBtn.textContent = originalText;
+        submitBtn.disabled = false;
         
         if (result.success) {
             alert('Кабинет успешно добавлен!');
@@ -73,6 +81,10 @@ async function handleAddClassroom(event) {
     } catch (error) {
         console.error('Ошибка при добавлении кабинета:', error);
         alert('Ошибка при добавлении кабинета: ' + error.message);
+        
+        const submitBtn = form.querySelector('button[type="submit"]');
+        submitBtn.textContent = 'Добавить кабинет';
+        submitBtn.disabled = false;
     }
 }
 
@@ -132,7 +144,7 @@ async function editClassroom(id) {
 }
 
 async function deleteClassroom(id) {
-    if (!confirm('Вы уверены, что хотите удалить этот кабинет?')) {
+    if (!confirm('Вы уверены, что хотите удалить этот кабинет? Все связанные данные будут потеряны.')) {
         return;
     }
     
