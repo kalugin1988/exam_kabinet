@@ -594,7 +594,14 @@ async function moveStudentWithCheck(studentId, classroomId, classroomNumber, new
                 body: JSON.stringify({
                     studentId: studentId,
                     classroomNumber: classroomNumber,
-                    placeNumber: newPlace
+                    placeNumber: newPlace,
+                    studentData: student ? {
+                        school_code: student.school_code,
+                        school_name: student.school_name,
+                        school_number_oo: student.school_number_oo,
+                        school_name_oo: student.school_name_oo,
+                        participant_code: student.participant_code
+                    } : null
                 })
             });
             
@@ -648,7 +655,14 @@ async function placeStudentWithCheck(studentId, classroomId, classroomNumber, pl
                 body: JSON.stringify({
                     studentId: studentId,
                     classroomNumber: classroomNumber,
-                    placeNumber: place
+                    placeNumber: place,
+                    studentData: student ? {
+                        school_code: student.school_code,
+                        school_name: student.school_name,
+                        school_number_oo: student.school_number_oo,
+                        school_name_oo: student.school_name_oo,
+                        participant_code: student.participant_code
+                    } : null
                 })
             });
             
