@@ -1289,3 +1289,30 @@ body {
         padding: 15px;
     }
 }
+/* Стили для модального окна пароля */
+#passwordModal .modal-content {
+    max-width: 400px;
+}
+
+#passwordModal .form-group {
+    margin: 15px 0;
+}
+
+#passwordModal label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+#adminPassword {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+#passwordMessage {
+    margin-bottom: 15px;
+    color: #333;
+}

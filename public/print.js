@@ -380,6 +380,8 @@ function updateStats() {
     }
 }
 
+// ========== ФОРМА Р ==========
+
 // Генерация превью формы Р
 function generateFormRPreview() {
     if (currentStudents.length === 0) return '';
@@ -400,21 +402,21 @@ function generateFormRPreview() {
         // Генерируем документ для каждой параллели
         Object.keys(studentsByParallel).sort().forEach(parallel => {
             const parallelStudents = studentsByParallel[parallel];
-            html += generateParallelDocument(parallel, parallelStudents);
+            html += generateParallelDocumentR(parallel, parallelStudents);
         });
     } else {
         // Все ученики в одном документе
-        html += generateSingleDocument(currentStudents);
+        html += generateSingleDocumentR(currentStudents);
     }
     
     // Добавляем опись
-    html += generateInventoryPage();
+    html += generateInventoryPageR();
     
     return html;
 }
 
-// Генерация документа для параллели
-function generateParallelDocument(parallel, students) {
+// Генерация документа для параллели (Форма Р)
+function generateParallelDocumentR(parallel, students) {
     const subject = students[0]?.предмет || 'Предмет';
     
     return `
@@ -439,15 +441,15 @@ function generateParallelDocument(parallel, students) {
                     </tr>
                 </thead>
                 <tbody>
-                    ${generateStudentsRows(students)}
+                    ${generateStudentsRowsR(students)}
                 </tbody>
             </table>
         </div>
     `;
 }
 
-// Генерация единого документа
-function generateSingleDocument(students) {
+// Генерация единого документа (Форма Р)
+function generateSingleDocumentR(students) {
     const subject = students[0]?.предмет || 'Предмет';
     const title = currentGroupBy === 'classroom' ? 
         `Кабинет №${currentClassroom?.номер_кабинета}` : 
@@ -475,19 +477,19 @@ function generateSingleDocument(students) {
                     </tr>
                 </thead>
                 <tbody>
-                    ${generateStudentsRows(students)}
+                    ${generateStudentsRowsR(students)}
                 </tbody>
             </table>
         </div>
     `;
 }
 
-// Генерация строк таблицы
-function generateStudentsRows(students) {
+// Генерация строк таблицы для формы Р
+function generateStudentsRowsR(students) {
     return students.map((student, index) => `
         <tr>
             <td class="text-center">${index + 1}</td>
-            <td class="text-center">${getStudentSchool(student)}</td>
+            <td class="text-center">${getStudentSchoolCode(student)}</td>
             <td class="text-center">${student.паралель}</td>
             <td>${student.фимилия} ${student.имя} ${student.отчество || ''}</td>
             <td class="text-center">${student.номер_кабинета}</td>
@@ -497,8 +499,8 @@ function generateStudentsRows(students) {
     `).join('');
 }
 
-// Генерация страницы описи
-function generateInventoryPage() {
+// Генерация страницы описи для формы Р
+function generateInventoryPageR() {
     let totalStudents = currentStudents.length;
     let totalPages = 0;
     
@@ -594,43 +596,243 @@ function generateInventoryPage() {
     `;
 }
 
+// ========== ФОРМА М ==========
+
 // Генерация превью формы М
 function generateFormMPreview() {
     if (currentStudents.length === 0) return '';
+    
+    let html = '';
+    
+    if (groupByParallel) {
+        // Группируем учеников по параллелям
+        const studentsByParallel = {};
+        currentStudents.forEach(student => {
+            const parallel = student.паралель;
+            if (!studentsByParallel[parallel]) {
+                studentsByParallel[parallel] = [];
+            }
+            studentsByParallel[parallel].push(student);
+        });
+        
+        // Генерируем документ для каждой параллели
+        Object.keys(studentsByParallel).sort().forEach(parallel => {
+            const parallelStudents = studentsByParallel[parallel];
+            html += generateParallelDocumentM(parallel, parallelStudents);
+        });
+    } else {
+        // Все ученики в одном документе
+        html += generateSingleDocumentM(currentStudents);
+    }
+    
+    // Добавляем опись для формы М
+    html += generateInventoryPageM();
+    
+    return html;
+}
+
+// Генерация документа для параллели (Форма М)
+function generateParallelDocumentM(parallel, students) {
+    const subject = students[0]?.предмет || 'Предмет';
     
     return `
         <div class="document-page">
             <div class="document-header">
                 <div class="school-name">${getSchoolName()}</div>
-                <div class="document-title">ФОРМА М - МОНИТОРИНГ</div>
-                <div class="document-subtitle">СИСТЕМА РАССАДКИ УЧАСТНИКОВ ОЛИМПИАДЫ</div>
+                <div class="document-title">Олимпиада по "${subject}". Муниципальный тур</div>
+                <div class="document-subtitle">ФОРМА М - МОНИТОРИНГ РАССАДКИ УЧАСТНИКОВ</div>
+                <div class="parallel-info">Класс ${parallel}</div>
+            </div>
+            
+            <table class="registration-table">
+                <thead>
+                    <tr>
+                        <th width="5%">№ п/п</th>
+                        <th width="25%">Школа</th>
+                        <th width="10%">Класс</th>
+                        <th width="30%">ФИО участника</th>
+                        <th width="10%">Ауд.</th>
+                        <th width="10%">Место</th>
+                        <th width="10%">Примечание</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${generateStudentsRowsM(students)}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+// Генерация единого документа (Форма М)
+function generateSingleDocumentM(students) {
+    const subject = students[0]?.предмет || 'Предмет';
+    const title = currentGroupBy === 'classroom' ? 
+        `Кабинет №${currentClassroom?.номер_кабинета}` : 
+        `${currentSchool?.name || currentSchool?.code}`;
+    
+    return `
+        <div class="document-page">
+            <div class="document-header">
+                <div class="school-name">${getSchoolName()}</div>
+                <div class="document-title">Олимпиада по "${subject}". Муниципальный тур</div>
+                <div class="document-subtitle">ФОРМА М - МОНИТОРИНГ РАССАДКИ УЧАСТНИКОВ</div>
+                <div class="parallel-info">${title}</div>
+            </div>
+            
+            <table class="registration-table">
+                <thead>
+                    <tr>
+                        <th width="5%">№ п/п</th>
+                        <th width="25%">Школа</th>
+                        <th width="10%">Класс</th>
+                        <th width="30%">ФИО участника</th>
+                        <th width="10%">Ауд.</th>
+                        <th width="10%">Место</th>
+                        <th width="10%">Примечание</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${generateStudentsRowsM(students)}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+// Генерация строк таблицы для формы М
+function generateStudentsRowsM(students) {
+    return students.map((student, index) => `
+        <tr>
+            <td class="text-center">${index + 1}</td>
+            <td>${getStudentSchool(student)}</td>
+            <td class="text-center">${student.паралель}</td>
+            <td>${student.фимилия} ${student.имя} ${student.отчество || ''}</td>
+            <td class="text-center">${student.номер_кабинета}</td>
+            <td class="text-center">${student.номер_места}</td>
+            <td class="text-center"></td>
+        </tr>
+    `).join('');
+}
+
+// Генерация страницы описи для формы М
+function generateInventoryPageM() {
+    let totalStudents = currentStudents.length;
+    let totalPages = 0;
+    
+    if (groupByParallel) {
+        const studentsByParallel = {};
+        currentStudents.forEach(student => {
+            const parallel = student.паралель;
+            if (!studentsByParallel[parallel]) {
+                studentsByParallel[parallel] = [];
+            }
+            studentsByParallel[parallel].push(student);
+        });
+        
+        Object.keys(studentsByParallel).forEach(parallel => {
+            const parallelStudents = studentsByParallel[parallel];
+            totalPages += Math.ceil(parallelStudents.length / 25);
+        });
+    } else {
+        totalPages = Math.ceil(totalStudents / 25);
+    }
+    
+    const studentsByParallel = {};
+    currentStudents.forEach(student => {
+        const parallel = student.паралель;
+        if (!studentsByParallel[parallel]) {
+            studentsByParallel[parallel] = [];
+        }
+        studentsByParallel[parallel].push(student);
+    });
+    
+    return `
+        <div class="document-page inventory-page">
+            <div class="document-header">
+                <div class="school-name">${getSchoolName()}</div>
+                <div class="document-subtitle">ОПИСЬ ДОКУМЕНТОВ (ФОРМА М)</div>
                 <div class="parallel-info">
                     ${currentGroupBy === 'classroom' ? `Кабинет №${currentClassroom?.номер_кабинета}` : `Школа: ${currentSchool?.name || currentSchool?.code}`}
                 </div>
             </div>
             
-            <div style="margin: 20px 0;">
-                <p><strong>Форма М находится в разработке</strong></p>
-                <p>В данный момент доступна только Форма Р (Регистрация)</p>
-                <p>Количество учеников для мониторинга: <strong>${currentStudents.length}</strong></p>
-                <p>Количество параллелей: <strong>${new Set(currentStudents.map(s => s.паралель)).size}</strong></p>
+            <table class="inventory-table">
+                <thead>
+                    <tr>
+                        <th width="15%">Класс</th>
+                        <th width="15%">Количество учеников</th>
+                        <th width="10%"></th>
+                        <th width="30%">Количество страниц</th>
+                        <th width="30%">Примечание</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${groupByParallel ? 
+                        Object.keys(studentsByParallel).sort().map(parallel => {
+                            const parallelStudents = studentsByParallel[parallel];
+                            const pages = Math.ceil(parallelStudents.length / 25);
+                            return `
+                                <tr>
+                                    <td class="text-center">${parallel}</td>
+                                    <td class="text-center">${parallelStudents.length}</td>
+                                    <td></td>
+                                    <td class="text-center">${pages}</td>
+                                    <td>Форма М</td>
+                                </tr>
+                            `;
+                        }).join('') :
+                        `
+                        <tr>
+                            <td class="text-center">Все классы</td>
+                            <td class="text-center">${totalStudents}</td>
+                            <td></td>
+                            <td class="text-center">${totalPages}</td>
+                            <td>Форма М - Общий список</td>
+                        </tr>
+                        `
+                    }
+                    <tr class="total-row">
+                        <td class="text-center"><strong>ИТОГО:</strong></td>
+                        <td class="text-center"><strong>${totalStudents}</strong></td>
+                        <td></td>
+                        <td class="text-center"><strong>${totalPages}</strong></td>
+                        <td></td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <div class="inventory-footer">
+                <p><strong>Всего документов:</strong> ${groupByParallel ? Object.keys(studentsByParallel).length : 1}</p>
+                <p><strong>Общее количество страниц:</strong> ${totalPages}</p>
+                <p><strong>Дата формирования:</strong> ${new Date().toLocaleDateString('ru-RU')}</p>
+                <p><strong>Форма:</strong> М (Мониторинг)</p>
+                <p><strong>Группировка:</strong> ${groupByParallel ? 'по параллелям' : 'единый список'}</p>
             </div>
         </div>
     `;
 }
 
-// Вспомогательные функции
-function getSchoolName() {
-    return "МУНИЦИПАЛЬНОЕ АВТОНОМНОЕ ОБЩЕОБРАЗОВАТЕЛЬНОЕ УЧРЕЖДЕНИЕ - СРЕДНЯЯ ОБЩЕОБРАЗОВАТЕЛЬНАЯ ШКОЛА № 25 ИМЕНИ В.Г. ФЕОФАНОВА";
+// ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
+
+// Получить код школы ученика (для формы Р)
+function getStudentSchoolCode(student) {
+    return student.school_number_oo || student.school_code || "000000";
 }
 
+// Получить название школы ученика (для формы М)
 function getStudentSchool(student) {
     return student.school_name_oo || student.school_name || "МОУ №1";
 }
 
-// Обработчик печати
-function handlePrint() {
-    console.log('🖨️ Запуск печати');
+function getSchoolName() {
+    return "МУНИЦИПАЛЬНОЕ АВТОНОМНОЕ ОБЩЕОБРАЗОВАТЕЛЬНОЕ УЧРЕЖДЕНИЕ - СРЕДНЯЯ ОБЩЕОБРАЗОВАТЕЛЬНАЯ ШКОЛА № 25 ИМЕНИ В.Г. ФЕОФАНОВА";
+}
+
+// ========== ПЕЧАТЬ ФОРМЫ Р ==========
+
+function handlePrintR() {
+    console.log('🖨️ Запуск печати формы Р');
     
     if (currentStudents.length === 0) {
         alert('Нет данных для печати');
@@ -678,7 +880,7 @@ function handlePrint() {
     }, 500);
 }
 
-// Генерация контента для печати
+// Генерация контента для печати формы Р
 function generateFormRPrintContent() {
     if (currentStudents.length === 0) return '';
     
@@ -696,19 +898,19 @@ function generateFormRPrintContent() {
         
         Object.keys(studentsByParallel).sort().forEach(parallel => {
             const parallelStudents = studentsByParallel[parallel];
-            content += generateParallelPrintContent(parallel, parallelStudents);
+            content += generateParallelPrintContentR(parallel, parallelStudents);
         });
     } else {
-        content += generateSinglePrintContent(currentStudents);
+        content += generateSinglePrintContentR(currentStudents);
     }
     
-    content += generateInventoryPrintPage();
+    content += generateInventoryPrintPageR();
     
     return content;
 }
 
-// Генерация контента для параллели
-function generateParallelPrintContent(parallel, students) {
+// Генерация контента для параллели (Форма Р)
+function generateParallelPrintContentR(parallel, students) {
     const subject = students[0]?.предмет || 'Предмет';
     let content = '';
     let pageCount = 0;
@@ -739,7 +941,7 @@ function generateParallelPrintContent(parallel, students) {
                         </tr>
                     </thead>
                     <tbody>
-                        ${generatePrintStudentsRows(pageStudents, i)}
+                        ${generatePrintStudentsRowsR(pageStudents, i)}
                     </tbody>
                 </table>
             </div>
@@ -749,8 +951,8 @@ function generateParallelPrintContent(parallel, students) {
     return content;
 }
 
-// Генерация единого контента
-function generateSinglePrintContent(students) {
+// Генерация единого контента (Форма Р)
+function generateSinglePrintContentR(students) {
     const subject = students[0]?.предмет || 'Предмет';
     const title = currentGroupBy === 'classroom' ? 
         `Кабинет №${currentClassroom?.номер_кабинета}` : 
@@ -785,7 +987,7 @@ function generateSinglePrintContent(students) {
                         </tr>
                     </thead>
                     <tbody>
-                        ${generatePrintStudentsRows(pageStudents, i)}
+                        ${generatePrintStudentsRowsR(pageStudents, i)}
                     </tbody>
                 </table>
             </div>
@@ -795,12 +997,12 @@ function generateSinglePrintContent(students) {
     return content;
 }
 
-// Генерация строк для печати
-function generatePrintStudentsRows(students, startIndex) {
+// Генерация строк для печати (Форма Р)
+function generatePrintStudentsRowsR(students, startIndex) {
     return students.map((student, index) => `
         <tr>
             <td class="text-center">${startIndex + index + 1}</td>
-            <td class="text-center">${getStudentSchool(student)}</td>
+            <td class="text-center">${getStudentSchoolCode(student)}</td>
             <td class="text-center">${student.паралель}</td>
             <td>${student.фимилия} ${student.имя} ${student.отчество || ''}</td>
             <td class="text-center">${student.номер_кабинета}</td>
@@ -810,10 +1012,207 @@ function generatePrintStudentsRows(students, startIndex) {
     `).join('');
 }
 
-// Генерация описи для печати
-function generateInventoryPrintPage() {
-    // Используем ту же логику, что и для превью
-    return generateInventoryPage();
+// Генерация описи для печати (Форма Р)
+function generateInventoryPrintPageR() {
+    return generateInventoryPageR();
+}
+
+// ========== ПЕЧАТЬ ФОРМЫ М ==========
+
+function handlePrintM() {
+    console.log('🖨️ Запуск печати формы М');
+    
+    if (currentStudents.length === 0) {
+        alert('Нет данных для печати');
+        return;
+    }
+    
+    const printContent = generateFormMPrintContent();
+    const printWindow = window.open('', '_blank');
+    
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Форма М - ${currentGroupBy === 'classroom' ? `Кабинет ${currentClassroom?.номер_кабинета}` : `Школа ${currentSchool?.name}`}</title>
+            <style>
+                body { font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.2; margin: 1cm; }
+                .print-page { page-break-after: always; }
+                .print-header { text-align: center; margin-bottom: 20pt; }
+                .school-name { font-size: 14pt; font-weight: bold; margin-bottom: 10pt; }
+                .document-title { font-size: 12pt; font-weight: bold; margin-bottom: 5pt; }
+                .document-subtitle { font-size: 12pt; font-weight: bold; margin-bottom: 5pt; text-transform: uppercase; }
+                .parallel-info { font-size: 12pt; margin-bottom: 15pt; }
+                .print-table { width: 100%; border-collapse: collapse; margin-bottom: 20pt; }
+                .print-table th, .print-table td { border: 1px solid #000; padding: 4pt 6pt; text-align: left; }
+                .print-table th { background-color: #f0f0f0; font-weight: bold; text-align: center; }
+                .inventory-table { width: 100%; border-collapse: collapse; margin-bottom: 20pt; }
+                .inventory-table th, .inventory-table td { border: 1px solid #000; padding: 6pt 8pt; text-align: left; }
+                .inventory-table th { background-color: #e0e0e0; font-weight: bold; text-align: center; }
+                .total-row { background-color: #f0f0f0; font-weight: bold; }
+                .text-center { text-align: center; }
+                .inventory-footer { margin-top: 30pt; border-top: 2px solid #000; padding-top: 10pt; }
+                .inventory-footer p { margin: 5pt 0; }
+                @media print { .print-page { page-break-after: always; } }
+            </style>
+        </head>
+        <body>${printContent}</body>
+        </html>
+    `);
+    
+    printWindow.document.close();
+    
+    setTimeout(() => {
+        printWindow.print();
+    }, 500);
+}
+
+// Генерация контента для печати формы М
+function generateFormMPrintContent() {
+    if (currentStudents.length === 0) return '';
+    
+    let content = '';
+    
+    if (groupByParallel) {
+        const studentsByParallel = {};
+        currentStudents.forEach(student => {
+            const parallel = student.паралель;
+            if (!studentsByParallel[parallel]) {
+                studentsByParallel[parallel] = [];
+            }
+            studentsByParallel[parallel].push(student);
+        });
+        
+        Object.keys(studentsByParallel).sort().forEach(parallel => {
+            const parallelStudents = studentsByParallel[parallel];
+            content += generateParallelPrintContentM(parallel, parallelStudents);
+        });
+    } else {
+        content += generateSinglePrintContentM(currentStudents);
+    }
+    
+    content += generateInventoryPrintPageM();
+    
+    return content;
+}
+
+// Генерация контента для параллели (Форма М)
+function generateParallelPrintContentM(parallel, students) {
+    const subject = students[0]?.предмет || 'Предмет';
+    let content = '';
+    let pageCount = 0;
+    
+    for (let i = 0; i < students.length; i += 25) {
+        const pageStudents = students.slice(i, i + 25);
+        pageCount++;
+        
+        content += `
+            <div class="print-page">
+                <div class="print-header">
+                    <div class="school-name">${getSchoolName()}</div>
+                    <div class="document-title">Олимпиада по "${subject}". Муниципальный тур</div>
+                    <div class="document-subtitle">ФОРМА М - МОНИТОРИНГ РАССАДКИ УЧАСТНИКОВ</div>
+                    <div class="parallel-info">Класс ${parallel}${pageCount > 1 ? ` (лист ${pageCount})` : ''}</div>
+                </div>
+                
+                <table class="print-table">
+                    <thead>
+                        <tr>
+                            <th width="5%">№ п/п</th>
+                            <th width="25%">Школа</th>
+                            <th width="10%">Класс</th>
+                            <th width="30%">ФИО участника</th>
+                            <th width="10%">Ауд.</th>
+                            <th width="10%">Место</th>
+                            <th width="10%">Примечание</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${generatePrintStudentsRowsM(pageStudents, i)}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+    
+    return content;
+}
+
+// Генерация единого контента (Форма М)
+function generateSinglePrintContentM(students) {
+    const subject = students[0]?.предмет || 'Предмет';
+    const title = currentGroupBy === 'classroom' ? 
+        `Кабинет №${currentClassroom?.номер_кабинета}` : 
+        `${currentSchool?.name || currentSchool?.code}`;
+    
+    let content = '';
+    let pageCount = 0;
+    
+    for (let i = 0; i < students.length; i += 25) {
+        const pageStudents = students.slice(i, i + 25);
+        pageCount++;
+        
+        content += `
+            <div class="print-page">
+                <div class="print-header">
+                    <div class="school-name">${getSchoolName()}</div>
+                    <div class="document-title">Олимпиада по "${subject}". Муниципальный тур</div>
+                    <div class="document-subtitle">ФОРМА М - МОНИТОРИНГ РАССАДКИ УЧАСТНИКОВ</div>
+                    <div class="parallel-info">${title}${pageCount > 1 ? ` (лист ${pageCount})` : ''}</div>
+                </div>
+                
+                <table class="print-table">
+                    <thead>
+                        <tr>
+                            <th width="5%">№ п/п</th>
+                            <th width="25%">Школа</th>
+                            <th width="10%">Класс</th>
+                            <th width="30%">ФИО участника</th>
+                            <th width="10%">Ауд.</th>
+                            <th width="10%">Место</th>
+                            <th width="10%">Примечание</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${generatePrintStudentsRowsM(pageStudents, i)}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+    
+    return content;
+}
+
+// Генерация строк для печати (Форма М)
+function generatePrintStudentsRowsM(students, startIndex) {
+    return students.map((student, index) => `
+        <tr>
+            <td class="text-center">${startIndex + index + 1}</td>
+            <td>${getStudentSchool(student)}</td>
+            <td class="text-center">${student.паралель}</td>
+            <td>${student.фимилия} ${student.имя} ${student.отчество || ''}</td>
+            <td class="text-center">${student.номер_кабинета}</td>
+            <td class="text-center">${student.номер_места}</td>
+            <td class="text-center"></td>
+        </tr>
+    `).join('');
+}
+
+// Генерация описи для печати (Форма М)
+function generateInventoryPrintPageM() {
+    return generateInventoryPageM();
+}
+
+// ========== ОБЩИЕ ФУНКЦИИ ПЕЧАТИ ==========
+
+// Обновление функции handlePrint для поддержки обеих форм
+function handlePrint() {
+    if (currentFormat === 'R') {
+        handlePrintR();
+    } else {
+        handlePrintM();
+    }
 }
 
 // Обработчик экспорта в Excel
