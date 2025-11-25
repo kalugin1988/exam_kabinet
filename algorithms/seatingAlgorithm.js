@@ -153,7 +153,7 @@ function checkForbiddenAdjacentPlaces(classroomOccupancy, seating, classroom, pl
 }
 
 /**
- * Распределяет учеников параллели по местам с приоритетом первых рядов и чередованием кабинетов
+ * Распределяет учеников параллели по местам БЕЗ чередования кабинетов и приоритета первых рядов
  */
 function distributeParallelStudents(students, classrooms, parallel, classroomOccupancy, seating, unplacedStudents, log) {
   log(`\nРАЗМЕЩЕНИЕ ПАРАЛЛЕЛИ ${parallel} (${students.length} учеников):`);
@@ -161,60 +161,21 @@ function distributeParallelStudents(students, classrooms, parallel, classroomOcc
   let studentIndex = 0;
   const placedStudents = [];
 
-  // Создаем матрицу мест: [ряд][кабинет][места]
-  const placesByRowAndClassroom = {};
+  // Собираем все доступные места из всех кабинетов в простом порядке
+  const allPlaces = [];
   
-  // Группируем места по рядам и кабинетам
+  // Проходим по кабинетам в исходном порядке
   for (const classroom of classrooms) {
     const occupancy = classroomOccupancy[classroom.номер_кабинета];
     
+    // Добавляем все места из текущего кабинета
     occupancy.allPlaces.forEach(place => {
-      const deskNumber = parseInt(place.slice(0, -1));
-      
-      if (!placesByRowAndClassroom[deskNumber]) {
-        placesByRowAndClassroom[deskNumber] = {};
-      }
-      if (!placesByRowAndClassroom[deskNumber][classroom.номер_кабинета]) {
-        placesByRowAndClassroom[deskNumber][classroom.номер_кабинета] = [];
-      }
-      
-      placesByRowAndClassroom[deskNumber][classroom.номер_кабинета].push({
+      allPlaces.push({
         classroom: classroom.номер_кабинета,
         place: place,
-        deskNumber: deskNumber,
-        rowLetter: place.slice(-1)
+        deskNumber: parseInt(place.slice(0, -1))
       });
     });
-  }
-
-  // Собираем места в правильном порядке: по рядам, чередуя кабинеты
-  const allPlaces = [];
-  const sortedRows = Object.keys(placesByRowAndClassroom).sort((a, b) => a - b);
-  
-  log(`  Доступные ряды: ${sortedRows.join(', ')}`);
-  
-  let hasMorePlaces = true;
-  let placeIndex = 0;
-  
-  while (hasMorePlaces) {
-    hasMorePlaces = false;
-    
-    // Для каждого ряда по порядку (1, 2, 3...)
-    for (const row of sortedRows) {
-      const classroomsInRow = Object.keys(placesByRowAndClassroom[row]);
-      
-      // Для каждого кабинета в этом ряду
-      for (const classroomNumber of classroomsInRow) {
-        const places = placesByRowAndClassroom[row][classroomNumber];
-        
-        // Берем место по текущему индексу, если оно существует
-        if (placeIndex < places.length) {
-          allPlaces.push(places[placeIndex]);
-          hasMorePlaces = true;
-        }
-      }
-    }
-    placeIndex++;
   }
 
   log(`  Всего доступных мест: ${allPlaces.length}`);
@@ -232,12 +193,12 @@ function distributeParallelStudents(students, classrooms, parallel, classroomOcc
   });
 
   // Проход с строгим соблюдением правил
-  log(`  🔄 Размещение с проверкой соседства (приоритет первым рядам + чередование кабинетов)...`);
+  log(`  🔄 Размещение с проверкой соседства (простой порядок мест)...`);
   let placedCount = 0;
   let skippedDueToRules = 0;
   const placedByClassroom = {};
 
-  // Проходим по всем местам в правильном порядке
+  // Проходим по всем местам в простом порядке (кабинет за кабинетом)
   for (const placeInfo of allPlaces) {
     if (studentIndex >= students.length) break;
     
@@ -270,10 +231,7 @@ function distributeParallelStudents(students, classrooms, parallel, classroomOcc
         if (!placedByClassroom[classroom]) placedByClassroom[classroom] = 0;
         placedByClassroom[classroom]++;
         
-        // Помечаем места первого ряда
-        const rowMark = deskNumber === 1 ? " 🎯" : "";
-        
-        log(`  ✅ ${student.surname} ${student.name} -> Кабинет ${classroom}, Место ${place}${rowMark}`);
+        log(`  ✅ ${student.surname} ${student.name} -> Кабинет ${classroom}, Место ${place}`);
         studentIndex++;
         placedCount++;
       } else {
