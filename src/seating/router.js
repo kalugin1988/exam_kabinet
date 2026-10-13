@@ -4,9 +4,9 @@ const fs = require('node:fs');
 const { DATA_DIR, transaction, quoteIdentifier } = require('../database');
 const { HttpError } = require('../errors');
 const validation = require('./validation');
-const { 
-  pool, 
-  parallelColors, 
+const {
+  pool,
+  parallelColors,
   generateTableName,
   initializeDatabase,
   initializeExistingClassroomTables,
@@ -55,16 +55,16 @@ app.get('/seating', async (req, res, next) => {
       getAllStudents(),
       getSubjects()
     ]);
-    
+
     const subjects = subjectsResult.map(row => row.subject);
-    
+
     console.log(`📊 Загружено: ${classrooms.length} кабинетов, ${students.length} учеников, ${subjects.length} предметов`);
-    
-    res.render('seating', { 
+
+    res.render('seating', {
       classrooms,
-      students, 
+      students,
       subjects,
-      parallelColors 
+      parallelColors
     });
   } catch (error) {
     console.error('❌ Ошибка загрузки данных:', error);
@@ -205,64 +205,64 @@ app.post('/api/check-placement', async (req, res, next) => {
     const studentId = validation.integer(req.body?.studentId, 'Ученик');
     const classroomNumber = validation.integer(req.body?.classroomNumber, 'Кабинет');
     const placeNumber = validation.place(req.body?.placeNumber);
-    
+
     console.log(`🔍 Проверка размещения: ученик=${studentId}, кабинет=${classroomNumber}, место=${placeNumber}`);
-    
+
     const student = await getStudentById(studentId);
     if (!student) {
       return res.status(404).json({ success: false, error: 'Ученик не найден' });
     }
-    
+
     if (!(await pool.query('SELECT id FROM Кабинеты WHERE номер_кабинета=$1', [classroomNumber])).rowCount) throw new HttpError(404, 'Кабинет не найден');
     const tableName = `kabinet_${classroomNumber}`;
     const placeResult = await pool.query(
       `SELECT заблокировано FROM ${tableName} WHERE номер_места = $1`,
       [placeNumber]
     );
-    
+
     if (!placeResult.rowCount) throw new HttpError(404, 'Место не найдено');
     if (placeResult.rows[0].заблокировано) {
-      return res.json({ 
-        success: false, 
+      return res.json({
+        success: false,
         error: 'Место заблокировано',
-        canPlace: false 
+        canPlace: false
       });
     }
-    
+
     const occupiedResult = await pool.query(
       'SELECT * FROM Ученики WHERE номер_кабинета = $1 AND номер_места = $2 AND id != $3 AND предмет = $4',
       [classroomNumber, placeNumber, studentId, student.предмет]
     );
-    
+
     if (occupiedResult.rows.length > 0) {
-      return res.json({ 
-        success: false, 
+      return res.json({
+        success: false,
         error: 'Место уже занято',
-        canPlace: false 
+        canPlace: false
       });
     }
-    
+
     const classmatesResult = await pool.query(
       'SELECT * FROM Ученики WHERE номер_кабинета = $1 AND id != $2 AND предмет = $3',
       [classroomNumber, studentId, student.предмет]
     );
-    
+
     const canPlace = checkPlacementRules(student, classroomNumber, placeNumber, classmatesResult.rows);
-    
+
     if (canPlace) {
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         canPlace: true,
         message: 'Ученик может быть размещен'
       });
     } else {
-      res.json({ 
-        success: false, 
+      res.json({
+        success: false,
         canPlace: false,
         error: 'Нарушены правила соседства'
       });
     }
-    
+
   } catch (error) {
     console.error('❌ Ошибка проверки размещения:', error);
     next(error);
@@ -275,28 +275,28 @@ app.get('/api/classrooms/:id/free-places', async (req, res, next) => {
   try {
     const { id } = req.params;
     console.log(`🪑 Получение свободных мест для кабинета ID=${id}`);
-    
+
     const classroom = await getClassroomById(id);
     if (!classroom) {
       return res.status(404).json({ success: false, error: 'Кабинет не найден' });
     }
-    
+
     const classroomNumber = classroom.номер_кабинета;
     const allPlaces = await getClassroomPlaces(classroomNumber);
     const occupiedPlaces = await getOccupiedPlaces(classroomNumber);
-    
+
     const freePlaces = allPlaces
       .filter(place => !place.заблокировано && !occupiedPlaces.includes(place.номер_места))
       .map(place => place.номер_места);
-    
+
     const blockedPlaces = allPlaces
       .filter(place => place.заблокировано)
       .map(place => place.номер_места);
-    
+
     console.log(`✅ Свободных мест: ${freePlaces.length}, заблокированных: ${blockedPlaces.length}`);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       freePlaces,
       blockedPlaces,
       totalPlaces: allPlaces.length,
@@ -314,29 +314,29 @@ app.put('/api/classrooms/:id/block-place', async (req, res, next) => {
     const placeNumber = validation.place(req.body?.placeNumber);
     const blocked = req.body?.blocked;
     if (typeof blocked !== 'boolean') throw new HttpError(400, 'Укажите состояние блокировки');
-    
+
     console.log(`${blocked ? '🔒' : '🔓'} ${blocked ? 'Блокировка' : 'Разблокировка'} места: кабинет ID=${id}, место=${placeNumber}`);
-    
+
     const classroom = await getClassroomById(id);
     if (!classroom) {
       return res.status(404).json({ success: false, error: 'Кабинет не найден' });
     }
-    
+
     const classroomNumber = classroom.номер_кабинета;
-    
+
     const tableName = `kabinet_${classroomNumber}`;
     const placeResult = await pool.query(
       `SELECT номер_места FROM ${tableName} WHERE номер_места = $1`,
       [placeNumber]
     );
-    
+
     if (placeResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Место не найдено' });
     }
-    
+
     await updatePlaceBlockStatus(classroomNumber, placeNumber, blocked);
     console.log(`✅ Место ${placeNumber} ${blocked ? 'заблокировано' : 'разблокировано'}`);
-    
+
     res.json({ success: true });
   } catch (error) {
     console.error('❌ Ошибка блокировки места:', error);
@@ -348,19 +348,19 @@ app.get('/api/classrooms/:id/blocked-places', async (req, res, next) => {
   try {
     const { id } = req.params;
     console.log(`🔒 Получение заблокированных мест для кабинета ID=${id}`);
-    
+
     const classroom = await getClassroomById(id);
     if (!classroom) {
       return res.status(404).json({ success: false, error: 'Кабинет не найден' });
     }
-    
+
     const classroomNumber = classroom.номер_кабинета;
     const blockedPlaces = await getBlockedPlaces(classroomNumber);
-    
+
     console.log(`✅ Заблокированных мест: ${blockedPlaces.length}`);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       blockedPlaces,
       count: blockedPlaces.length
     });
@@ -376,38 +376,38 @@ app.post('/api/generate-seating', async (req, res, next) => {
   const log = (message) => {
     console.log(message);
   };
-  
+
   try {
     const response = await transaction(async () => {
     const subject = validation.text(req.body?.subject, 'Предмет', 100);
-    
+
     if (!subject) {
       throw new HttpError(400, 'Не указан предмет');
     }
-    
+
     log(`🎯 НАЧАЛО ФОРМИРОВАНИЯ ПОСАДКИ ДЛЯ ПРЕДМЕТА: ${subject}`);
-    
+
     const tableName = generateTableName(subject);
-    
+
     log(`📋 Проверяем таблицу: ${tableName}`);
-    
+
     const tableExists = await pool.query(`
       SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
         AND table_name = $1
       )
     `, [tableName]);
-    
+
     let students;
     let studentsSource = '';
-    
+
     if (tableExists.rows[0].exists) {
       log(`✅ Таблица ${tableName} существует`);
       students = await pool.query(`SELECT * FROM ${quoteIdentifier(tableName)}`);
       students = students.rows;
       studentsSource = tableName;
-      
+
       if (students.length > 0) {
         const importSuccess = await importStudentsFromSubjectTable(students, subject);
         if (!importSuccess) {
@@ -424,24 +424,24 @@ app.post('/api/generate-seating', async (req, res, next) => {
       students = students.rows;
       studentsSource = 'Ученики';
     }
-    
+
     log(`📚 Загружено учеников из ${studentsSource}: ${students.length}`);
-    
+
     if (students.length === 0) {
       log(`⚠️ Нет учеников для предмета "${subject}"`);
       throw new HttpError(400, `Нет учеников для предмета "${subject}"`);
     }
-    
+
     const actualStudents = await pool.query(
       'SELECT * FROM Ученики WHERE предмет = $1 ORDER BY паралель, фимилия',
       [subject]
     );
-    
+
     log(`📊 Актуальные данные: ${actualStudents.rows.length} записей`);
-    
+
     const classrooms = await getAllClassrooms();
     log(`🏫 Загружено кабинетов: ${classrooms.length}`);
-    
+
     const blockedPlacesByClassroom = {};
     for (const classroom of classrooms) {
       const tableName = `kabinet_${classroom.номер_кабинета}`;
@@ -451,23 +451,23 @@ app.post('/api/generate-seating', async (req, res, next) => {
       blockedPlacesByClassroom[classroom.номер_кабинета] = blockedResult.rows.map(row => row.номер_места);
       log(`🔒 Кабинет ${classroom.номер_кабинета}: ${blockedResult.rows.length} заблокированных мест`);
     }
-    
+
     const result = generateSeating(actualStudents.rows, classrooms, blockedPlacesByClassroom, log);
     const { seating, unplacedStudents } = result;
-    
+
     log(`✅ Сформировано размещений: ${seating.length}`);
     log(`⚠️ Не размещено: ${unplacedStudents.length}`);
-    
+
     await pool.query('UPDATE Ученики SET номер_кабинета=NULL,номер_места=NULL WHERE предмет=$1', [subject]);
     log('💾 Обновляем места в базе данных...');
     for (const assignment of seating) {
       // Находим полные данные ученика для обновления дополнительных полей
       const student = actualStudents.rows.find(s => s.id === assignment.studentId);
-      
+
       if (student) {
         await updateStudentPlaceWithDetails(
-          assignment.studentId, 
-          assignment.classroom, 
+          assignment.studentId,
+          assignment.classroom,
           assignment.place,
           {
             school_code: student.school_code,
@@ -483,11 +483,11 @@ app.post('/api/generate-seating', async (req, res, next) => {
       }
     }
     log('✅ Места и данные учеников обновлены');
-    
+
     log(`🎉 ЗАВЕРШЕНО ФОРМИРОВАНИЕ ПОСАДКИ ДЛЯ: ${subject}`);
-    
-    return { 
-      success: true, 
+
+    return {
+      success: true,
       seating,
       unplacedStudents,
       stats: {
@@ -534,10 +534,10 @@ app.post('/api/clear-all-data', async (req, res, next) => {
 app.get('/api/export-seating', async (req, res, next) => {
   try {
     console.log('📤 Экспорт данных о посадке');
-    
+
     const students = await getStudentsWithPlaces();
     console.log(`✅ Экспортируется ${students.length} учеников`);
-    
+
     const data = {
       exportDate: new Date().toISOString(),
       exportInfo: {
@@ -547,15 +547,15 @@ app.get('/api/export-seating', async (req, res, next) => {
       },
       students
     };
-    
+
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `seating_export_${timestamp}.json`;
     const filePath = path.join(DATA_DIR, 'exports', filename);
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    
+
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
     console.log(`✅ Файл экспорта создан: ${filename}`);
-    
+
     res.download(filePath, `seating_export.json`, (err) => {
       if (err && !res.headersSent) next(err);
       setTimeout(() => {
@@ -567,7 +567,7 @@ app.get('/api/export-seating', async (req, res, next) => {
         }
       }, 1000);
     });
-    
+
   } catch (error) {
     console.error('❌ Ошибка экспорта:', error);
     next(error);
@@ -626,11 +626,11 @@ app.put('/api/classrooms/:id/layout', async (req, res, next) => {
     const { row_mapping } = req.body || {};
     if (!row_mapping || typeof row_mapping !== 'object' || Array.isArray(row_mapping)) throw new HttpError(400, 'Неверная конфигурация рядов');
     if (!(await getClassroomById(id))) throw new HttpError(404, 'Кабинет не найден');
-    
+
     console.log(`⚙️ Обновление конфигурации кабинета ID=${id}`);
     await updateClassroomLayout(id, row_mapping);
     console.log(`✅ Конфигурация обновлена`);
-    
+
     res.json({ success: true });
   } catch (error) {
     console.error('❌ Ошибка обновления конфигурации:', error);
@@ -642,7 +642,7 @@ app.get('/api/classrooms/:id/layout', async (req, res, next) => {
   try {
     const { id } = req.params;
     console.log(`⚙️ Загрузка конфигурации кабинета ID=${id}`);
-    
+
     const row_mapping = await getClassroomLayout(id);
     res.json({ success: true, row_mapping });
   } catch (error) {
@@ -655,10 +655,10 @@ app.delete('/api/classrooms/:id/layout', async (req, res, next) => {
   try {
     const { id } = req.params;
     console.log(`🗑️ Удаление конфигурации кабинета ID=${id}`);
-    
+
     await deleteClassroomLayout(id);
     console.log(`✅ Конфигурация удалена`);
-    
+
     res.json({ success: true });
   } catch (error) {
     console.error('❌ Ошибка удаления конфигурации:', error);
@@ -706,23 +706,23 @@ app.get('/api/classrooms/:id/available-desks', async (req, res, next) => {
   try {
     const { id } = req.params;
     const { currentRow, currentDesk } = req.query;
-    
+
     console.log(`🔍 Получение доступных мест для кабинета ${id}`);
-    
+
     const classroom = await getClassroomById(id);
     if (!classroom) {
       return res.status(404).json({ success: false, error: 'Кабинет не найден' });
     }
-    
+
     const availableDesks = [];
     const rows = classroom.количество_рядов_парт;
     const totalDesks = classroom.количество_парт;
     const desksPerRow = Math.ceil(totalDesks / rows);
-    
+
     for (let row = 1; row <= rows; row++) {
       for (let desk = 1; desk <= desksPerRow; desk++) {
         if (row == currentRow && desk == currentDesk) continue;
-        
+
         const deskNumber = (row - 1) * desksPerRow + desk;
         if (deskNumber <= totalDesks) {
           availableDesks.push({
@@ -733,7 +733,7 @@ app.get('/api/classrooms/:id/available-desks', async (req, res, next) => {
         }
       }
     }
-    
+
     res.json({ success: true, availableDesks });
   } catch (error) {
     console.error('❌ Ошибка получения доступных мест:', error);
@@ -760,18 +760,18 @@ app.get('/api/subjects', async (req, res, next) => {
 app.get('/api/health', async (req, res, next) => {
   try {
     await healthCheck();
-    res.json({ 
-      success: true, 
-      status: 'OK', 
+    res.json({
+      success: true,
+      status: 'OK',
       database: 'connected',
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    res.status(503).json({ 
-      success: false, 
-      status: 'ERROR', 
+    res.status(503).json({
+      success: false,
+      status: 'ERROR',
       database: 'disconnected',
-      error: error.message 
+      error: error.message
     });
   }
 });
