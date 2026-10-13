@@ -1,80 +1,15 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Система рассадки учеников</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <div class="container">
-        <header class="header">
-            <h1>🎓 Система рассадки учеников</h1>
-            <nav>
-                <a href="/print" class="btn btn-primary">Печать</a>
-                <a href="/kabinet" class="btn btn-primary">Управление кабинетами</a>
-            </nav>
-        </header>
-
-        <div class="controls">
-            <div class="control-buttons">
-                <button class="btn btn-success" onclick="showSubjectModal()">Сформировать посадку</button>
-                <button class="btn btn-warning" onclick="clearSeating()">Очистить посадку</button>
-                <button class="btn btn-danger" onclick="clearAllData()">Удалить всех учеников</button>
-                <button class="btn btn-info" onclick="exportToJson()">Экспорт в JSON</button>
-                <button class="btn btn-info" onclick="document.getElementById('importFile').click()">Импорт из JSON</button>
-                <input type="file" id="importFile" accept=".json" style="display: none;">
-            </div>
-        </div>
-
-        <div id="classroomsContainer" class="classrooms-container">
-            <!-- Кабинеты будут отрисованы здесь -->
-        </div>
-    </div>
-
-    <!-- Модальное окно выбора предмета -->
-    <div id="subjectModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeSubjectModal()">&times;</span>
-            <h3>Выберите предмет для формирования посадки</h3>
-            <select id="subjectSelect" class="form-control">
-                <option value="">-- Выберите предмет --</option>
-                <% subjects.forEach(function(subject) { %>
-                    <option value="<%= subject %>"><%= subject %></option>
-                <% }); %>
-            </select>
-            <button class="btn btn-success" onclick="generateSeating()" style="margin-top: 15px; width: 100%;">
-                Сформировать посадку
-            </button>
-        </div>
-    </div>
-
-    <!-- Модальное окно информации об ученике -->
-    <div id="studentModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeStudentModal()">&times;</span>
-            <div id="studentInfo">
-                <!-- Информация об ученике будет здесь -->
-            </div>
-        </div>
-    </div>
-
-    <!-- Модальное окно для перемещения парты -->
-    <div id="moveDeskModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeMoveDeskModal()">&times;</span>
-            <div id="moveDeskModalContent">
-                <!-- Контент будет заполнен динамически -->
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // Передаем данные из EJS в JavaScript
-        const classroomsData = <%- JSON.stringify(classrooms) %>;
-        const studentsData = <%- JSON.stringify(students) %>;
-        const parallelColors = <%- JSON.stringify(parallelColors) %>;
-    </script>
-    <script src="script.js"></script>
-</body>
-</html>
+<%- include('partials/header', {pageTitle:'Обзор',activePage:'dashboard'}) %>
+<section class="page-heading"><div><p class="eyebrow">Рабочее пространство</p><h1>Всё для проведения экзамена</h1><p class="lead">Загрузите участников, подготовьте кабинеты и сформируйте документы в одном месте.</p></div><a class="btn btn-primary" href="/import">Загрузить данные <span aria-hidden="true">→</span></a></section>
+<section class="metrics-grid" aria-label="Данные системы">
+  <article class="metric-card"><span>Участников</span><strong id="participantCount">—</strong><small>В общем списке</small></article>
+  <article class="metric-card"><span>Размещено</span><strong id="seatedCount">—</strong><small>Место назначено</small></article>
+  <article class="metric-card"><span>Кабинетов</span><strong id="classroomCount">—</strong><small>Готовы к рассадке</small></article>
+  <article class="metric-card"><span>Предметов</span><strong id="subjectCount">—</strong><small>В загруженных данных</small></article>
+</section>
+<section class="section-block" aria-labelledby="workflowTitle"><div class="section-heading"><h2 id="workflowTitle">Подготовка экзамена</h2><span class="muted">Три последовательных шага</span></div><div class="workflow-grid">
+  <a class="workflow-card" href="/import"><span class="step-number">01</span><h3>Импорт данных</h3><p>Excel и CSV: участники, результаты сканирования и образовательные учреждения.</p><span class="card-action">Перейти к импорту <span aria-hidden="true">→</span></span></a>
+  <a class="workflow-card" href="/seating"><span class="step-number">02</span><h3>Рассадка участников</h3><p>Автоматическое распределение по предметам и ручная корректировка мест.</p><span class="card-action">Открыть рассадку <span aria-hidden="true">→</span></span></a>
+  <a class="workflow-card" href="/forms"><span class="step-number">03</span><h3>Документы и печать</h3><p>Ведомости, акты передачи, сопроводительные листы и списки регистрации.</p><span class="card-action">Сформировать документы <span aria-hidden="true">→</span></span></a>
+</div></section>
+<section class="setup-callout"><div><p class="eyebrow">Перед рассадкой</p><h2>Проверьте пространство и сведения</h2><p>Укажите количество парт и рядов в кабинетах. Данные учреждений попадут в экзаменационные документы.</p></div><div class="button-row"><a class="btn btn-secondary" href="/kabinet">Настроить кабинеты</a><a class="btn btn-secondary" href="/oo">Проверить учреждения</a></div></section>
+<%- include('partials/footer', {scripts:['/assets/dashboard.js']}) %>

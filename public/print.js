@@ -1,1283 +1,342 @@
-// Функции для печати документов
-let currentClassroom = null;
-let currentSchool = null;
-let currentStudents = [];
-let groupByParallel = true;
-let currentFormat = 'R';
-let currentGroupBy = 'classroom';
+'use strict';
+(() => {
+  const form = document.getElementById('printSettingsForm');
+  if (!form) return;
 
-// Инициализация страницы печати
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('=== ИНИЦИАЛИЗАЦИЯ СТРАНИЦЫ ПЕЧАТИ ===');
-    
-    if (window.location.pathname === '/print') {
-        initializePrintPage();
-    }
-});
+  const grouping = document.getElementById('printGrouping');
+  const selection = document.getElementById('printSelection');
+  const selectionLabel = document.getElementById('printSelectionLabel');
+  const selectionHelp = document.getElementById('printSelectionHelp');
+  const parallel = document.getElementById('printParallel');
+  const message = document.getElementById('printMessage');
+  const preview = document.getElementById('printPreview');
+  const previewStatus = document.getElementById('printPreviewStatus');
+  const summary = document.getElementById('printSummary');
+  const buttons = {
+    preview: document.getElementById('printPreviewButton'),
+    print: document.getElementById('printSelectedButton'),
+    excel: document.getElementById('printExcelButton'),
+    all: document.getElementById('printAllButton'),
+    allExcel: document.getElementById('printAllExcelButton')
+  };
+  const escape = value => Exam.escape(value);
+  const pageSize = 25;
+  const collator = new Intl.Collator('ru', {numeric: true});
+  let options = {classrooms: [], schools: []};
+  let loadingOptions = true;
+  let working = false;
+  let previewRevision = 0;
+  let cachedSelection = null;
 
-function initializePrintPage() {
-    console.log('1. Запуск инициализации страницы печати');
-    
-    // Элементы управления
-    const classroomSelect = document.getElementById('classroomSelect');
-    const schoolSelect = document.getElementById('schoolSelect');
-    const printBtn = document.getElementById('printBtn');
-    const exportExcelBtn = document.getElementById('exportExcelBtn');
-    const bulkPrintBtn = document.getElementById('bulkPrintBtn');
-    const groupByParallelCheckbox = document.getElementById('groupByParallel');
-    const groupByRadios = document.querySelectorAll('input[name="groupBy"]');
-    const formatRadios = document.querySelectorAll('input[name="format"]');
+  function settings(all = false) {
+    return {
+      groupBy: grouping.value,
+      format: form.querySelector('input[name="printFormat"]:checked').value,
+      selection: all ? 'all' : selection.value,
+      grouped: parallel.checked
+    };
+  }
 
-    // Загружаем список кабинетов по умолчанию
-    loadClassroomsFromStudents();
-    
-    // Обработчики для переключения группировки
-    groupByRadios.forEach(radio => {
-        radio.addEventListener('change', function(e) {
-            currentGroupBy = e.target.value;
-            console.log(`🏫 Группировка: ${currentGroupBy}`);
-            
-            if (currentGroupBy === 'classroom') {
-                document.getElementById('classroomGroup').style.display = 'block';
-                document.getElementById('schoolGroup').style.display = 'none';
-                loadClassroomsFromStudents();
-            } else {
-                document.getElementById('classroomGroup').style.display = 'none';
-                document.getElementById('schoolGroup').style.display = 'block';
-                loadSchoolsFromStudents();
-            }
-            
-            resetData();
-        });
-    });
+  function groupOptions() {
+    return grouping.value === 'classroom' ? options.classrooms : options.schools;
+  }
 
-    // Обработчики для форматов
-    formatRadios.forEach(radio => {
-        radio.addEventListener('change', function(e) {
-            currentFormat = e.target.value;
-            console.log(`📋 Формат: ${currentFormat}`);
-            if (currentStudents.length > 0) {
-                updatePreview();
-            }
-        });
-    });
+  function syncButtons() {
+    const selected = Boolean(selection.value);
+    const hasGroups = groupOptions().length > 0;
+    for (const key of ['preview', 'print', 'excel']) buttons[key].disabled = working || loadingOptions || !selected;
+    for (const key of ['all', 'allExcel']) buttons[key].disabled = working || loadingOptions || !hasGroups;
+    selection.disabled = working || loadingOptions || !hasGroups;
+    grouping.disabled = working || loadingOptions;
+    parallel.disabled = working;
+    form.querySelectorAll('input[name="printFormat"]').forEach(input => { input.disabled = working; });
+  }
 
-    // Обработчики для основных элементов
-    if (classroomSelect) {
-        classroomSelect.addEventListener('change', handleClassroomChange);
-    }
+  function resetPreview() {
+    previewRevision += 1;
+    cachedSelection = null;
+    summary.hidden = true;
+    summary.replaceChildren();
+    preview.innerHTML = '<div class="empty-state"><h3>Обновите предпросмотр</h3><p>Нажмите «Предпросмотр», чтобы подготовить документы с выбранными параметрами.</p></div>';
+    previewStatus.textContent = 'Предпросмотр требует обновления';
+    Exam.message(message, '');
+    syncButtons();
+  }
 
-    if (printBtn) {
-        printBtn.addEventListener('click', handlePrint);
-    }
+  function populateSelection() {
+    const classrooms = grouping.value === 'classroom';
+    const groups = groupOptions();
+    selectionLabel.textContent = classrooms ? 'Кабинет' : 'Школа';
+    buttons.all.textContent = classrooms ? 'Печать всех кабинетов' : 'Печать всех школ';
+    buttons.allExcel.textContent = classrooms ? 'Excel всех кабинетов' : 'Excel всех школ';
+    selection.replaceChildren(new Option(groups.length ? (classrooms ? 'Выберите кабинет' : 'Выберите школу') : 'Нет участников в этой группе', ''));
+    for (const group of groups) selection.add(new Option(`${group.name} · ${group.studentCount} участников`, String(group.id)));
+    selectionHelp.textContent = groups.length ? 'В списке показаны только группы с участниками.' : 'Импортируйте участников и выполните рассадку, чтобы подготовить документы.';
+    resetPreview();
+  }
 
-    if (exportExcelBtn) {
-        exportExcelBtn.addEventListener('click', handleExportExcel);
-    }
-
-    if (bulkPrintBtn) {
-        bulkPrintBtn.addEventListener('click', handleBulkPrint);
-    }
-
-    if (groupByParallelCheckbox) {
-        groupByParallelCheckbox.addEventListener('change', function(e) {
-            groupByParallel = e.target.checked;
-            console.log(`📊 Группировка по параллелям: ${groupByParallel ? 'ВКЛ' : 'ВЫКЛ'}`);
-            if (currentStudents.length > 0) {
-                updatePreview();
-            }
-        });
-    }
-    
-    console.log('✅ Инициализация завершена');
-}
-
-// Загрузка кабинетов из данных учеников
-async function loadClassroomsFromStudents() {
+  async function loadOptions() {
     try {
-        console.log('📋 Загрузка данных учеников для получения кабинетов...');
-        
-        const response = await fetch('/api/students');
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const result = await response.json();
-        
-        if (result.success && result.students) {
-            // Получаем уникальные номера кабинетов
-            const classrooms = [...new Set(result.students
-                .filter(student => {
-                    const hasClassroom = student.номер_кабинета !== null && student.номер_кабинета !== undefined;
-                    const hasPlace = student.номер_места !== null && student.номер_места !== undefined;
-                    return hasClassroom && hasPlace;
-                })
-                .map(student => parseInt(student.номер_кабинета))
-            )].sort((a, b) => a - b);
-            
-            console.log('🏫 Найдены кабинеты с учениками:', classrooms);
-            
-            const select = document.getElementById('classroomSelect');
-            if (select) {
-                select.innerHTML = '<option value="">Выберите кабинет</option>';
-                
-                classrooms.forEach(classroomNumber => {
-                    const option = document.createElement('option');
-                    option.value = classroomNumber;
-                    option.textContent = `Кабинет №${classroomNumber}`;
-                    select.appendChild(option);
-                });
-                
-                console.log(`✅ Загружено кабинетов: ${classrooms.length}`);
-            }
-        }
+      const result = await Exam.request('/api/print/options');
+      options = {
+        classrooms: Array.isArray(result.options?.classrooms) ? result.options.classrooms : [],
+        schools: Array.isArray(result.options?.schools) ? result.options.schools : []
+      };
+      loadingOptions = false;
+      populateSelection();
     } catch (error) {
-        console.error('❌ Ошибка загрузки кабинетов:', error);
-        showNotification('Ошибка загрузки данных: ' + error.message, 'error');
+      loadingOptions = false;
+      selection.replaceChildren(new Option('Не удалось загрузить группы', ''));
+      selectionHelp.textContent = 'Обновите страницу, чтобы повторить загрузку.';
+      Exam.message(message, error.message);
+      syncButtons();
     }
-}
+  }
 
-// Загрузка школ из данных учеников
-async function loadSchoolsFromStudents() {
+  function normalizedGroups(data) {
+    if (!Array.isArray(data)) throw new Error('Сервер вернул некорректный список документов.');
+    return data.map(group => ({
+      title: String(group.title ?? 'Группа участников'),
+      oo: String(group.oo && typeof group.oo === 'object' ? group.oo.full_name || group.oo.name_oo || '' : group.oo ?? ''),
+      parallels: (Array.isArray(group.parallels) ? group.parallels : []).map(item => ({
+        name: String(item.name ?? 'Не указан'),
+        students: Array.isArray(item.students) ? item.students : []
+      })).filter(item => item.students.length > 0).sort((a, b) => collator.compare(a.name, b.name))
+    })).filter(group => group.parallels.length > 0);
+  }
+
+  async function loadGroups(config) {
     try {
-        console.log('🎓 Загрузка данных учеников для получения школ...');
-        
-        const response = await fetch('/api/students');
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const result = await response.json();
-        
-        if (result.success && result.students) {
-            // Получаем уникальные школы
-            const schoolsMap = new Map();
-            
-            result.students
-                .filter(student => {
-                    const hasSchool = student.school_number_oo || student.school_code;
-                    const hasPlace = student.номер_кабинета && student.номер_места;
-                    return hasSchool && hasPlace;
-                })
-                .forEach(student => {
-                    const schoolCode = student.school_number_oo || student.school_code;
-                    const schoolName = student.school_name_oo || student.school_name || `Школа ${schoolCode}`;
-                    
-                    if (!schoolsMap.has(schoolCode)) {
-                        schoolsMap.set(schoolCode, {
-                            code: schoolCode,
-                            name: schoolName,
-                            count: 0
-                        });
-                    }
-                    schoolsMap.get(schoolCode).count++;
-                });
-            
-            const schools = Array.from(schoolsMap.values())
-                .sort((a, b) => a.name.localeCompare(b.name));
-            
-            console.log('🏫 Найдены школы:', schools);
-            
-            const select = document.getElementById('schoolSelect');
-            if (select) {
-                select.innerHTML = '<option value="">Выберите школу</option>';
-                
-                schools.forEach(school => {
-                    const option = document.createElement('option');
-                    option.value = school.code;
-                    option.textContent = `${school.name} (${school.count} уч.)`;
-                    select.appendChild(option);
-                });
-                
-                console.log(`✅ Загружено школ: ${schools.length}`);
-                
-                // Добавляем обработчик изменения школы
-                select.addEventListener('change', handleSchoolChange);
-            }
-        }
-    } catch (error) {
-        console.error('❌ Ошибка загрузки школ:', error);
-        showNotification('Ошибка загрузки школ: ' + error.message, 'error');
+      if (!config.selection) throw new Error('Выберите кабинет или школу.');
+      const params = new URLSearchParams({groupBy: config.groupBy, format: config.format, selection: config.selection});
+      const key = params.toString();
+      if (config.selection !== 'all' && cachedSelection?.key === key) return cachedSelection.groups;
+      const result = await Exam.request(`/api/print/bulk?${params}`);
+      const groups = normalizedGroups(result.data);
+      if (!groups.length) throw new Error('В выбранной группе нет участников. Обновите данные или выберите другую группу.');
+      if (config.selection !== 'all') cachedSelection = {key, groups};
+      return groups;
+    } catch (error) { throw error; }
+  }
+
+  function documentsFor(group, config) {
+    if (config.grouped) return group.parallels;
+    return [{name: 'Все параллели', students: group.parallels.flatMap(item => item.students)}];
+  }
+
+  function countPages(groups, config) {
+    return groups.reduce((counts, group) => {
+      const documents = documentsFor(group, config);
+      counts.students += documents.reduce((total, item) => total + item.students.length, 0);
+      counts.lists += documents.reduce((total, item) => total + Math.ceil(item.students.length / pageSize), 0);
+      counts.inventory += Math.ceil(documents.length / pageSize);
+      counts.parallels += group.parallels.length;
+      return counts;
+    }, {students: 0, lists: 0, inventory: 0, parallels: 0});
+  }
+
+  function studentRows(students, start, config) {
+    return students.map((student, index) => `<tr>
+      <td class="print-centered">${escape(start + index + 1)}</td>
+      <td>${escape(config.format === 'R' ? student.school_number_oo : (student.school_name_oo || student.school_number_oo))}</td>
+      <td class="print-centered">${escape(student.parallel)}</td>
+      <td>${escape(student.full_name)}</td>
+      <td class="print-centered">${escape(student.classroom ?? '—')}</td>
+      <td class="print-centered">${escape(student.place ?? '—')}</td>
+      <td class="print-writing-cell"></td>
+    </tr>`).join('');
+  }
+
+  function subjectText(students) {
+    const subjects = [...new Set(students.map(student => String(student.предмет ?? '').trim()).filter(Boolean))];
+    return subjects.length ? `Предмет: ${subjects.join(', ')}` : 'Муниципальный тур олимпиады';
+  }
+
+  function pageHeader(group, title, subtitle, subject = '') {
+    return `<header class="print-page-heading">${group.oo ? `<p class="print-host">${escape(group.oo)}</p>` : ''}<h2>${escape(title)}</h2>${subject ? `<p>${escape(subject)}</p>` : ''}<p><strong>${escape(group.title)}</strong> · ${escape(subtitle)}</p></header>`;
+  }
+
+  function documentPages(group, config) {
+    const documents = documentsFor(group, config);
+    const pages = [];
+    const title = config.format === 'R' ? 'Лист регистрации участников · Форма Р' : 'Мониторинг рассадки участников · Форма М';
+    for (const item of documents) {
+      const count = Math.ceil(item.students.length / pageSize);
+      for (let start = 0; start < item.students.length; start += pageSize) {
+        const current = Math.floor(start / pageSize) + 1;
+        const subtitle = `${config.grouped ? `Параллель ${item.name}` : item.name} · Лист ${current} из ${count}`;
+        pages.push(`<section class="print-page" aria-label="${escape(`${group.title} — ${subtitle}`)}">${pageHeader(group, title, subtitle, subjectText(item.students))}
+          <table class="print-data-table"><colgroup><col style="width:5%"><col style="width:${config.format === 'R' ? '12' : '23'}%"><col style="width:7%"><col style="width:${config.format === 'R' ? '31' : '26'}%"><col style="width:8%"><col style="width:8%"><col style="width:${config.format === 'R' ? '29' : '23'}%"></colgroup>
+          <thead><tr><th scope="col">№</th><th scope="col">${config.format === 'R' ? 'Код ОО' : 'Школа'}</th><th scope="col">Класс</th><th scope="col">ФИО участника</th><th scope="col">Ауд.</th><th scope="col">Место</th><th scope="col">${config.format === 'R' ? 'Подпись' : 'Примечание'}</th></tr></thead><tbody>${studentRows(item.students.slice(start, start + pageSize), start, config)}</tbody></table>
+          <footer class="print-page-footer"><span>${escape(group.title)}</span><span>Форма ${config.format === 'R' ? 'Р' : 'М'} · ${escape(subtitle)}</span></footer></section>`);
+      }
     }
-}
-
-// Обработчик изменения кабинета
-async function handleClassroomChange(event) {
-    const classroomNumber = event.target.value;
-    console.log('🎯 Выбран кабинет:', classroomNumber);
-    
-    if (!classroomNumber) {
-        resetData();
-        return;
+    const totalStudents = documents.reduce((total, item) => total + item.students.length, 0);
+    const totalPages = documents.reduce((total, item) => total + Math.ceil(item.students.length / pageSize), 0);
+    const inventoryPages = Math.ceil(documents.length / pageSize);
+    const date = new Intl.DateTimeFormat('ru-RU', {timeZone: 'Asia/Yekaterinburg'}).format(new Date());
+    for (let start = 0; start < documents.length; start += pageSize) {
+      const number = Math.floor(start / pageSize) + 1;
+      const last = number === inventoryPages;
+      pages.push(`<section class="print-page print-inventory" aria-label="${escape(`Опись — ${group.title}, лист ${number}`)}">${pageHeader(group, `Опись документов · Форма ${config.format === 'R' ? 'Р' : 'М'}`, `Лист ${number} из ${inventoryPages}`)}
+        <table class="print-data-table"><thead><tr><th scope="col">Параллель</th><th scope="col">Участников</th><th scope="col">Листов</th><th scope="col">Документ</th><th scope="col">Примечание</th></tr></thead><tbody>${documents.slice(start, start + pageSize).map(item => `<tr><td>${escape(item.name)}</td><td class="print-centered">${escape(item.students.length)}</td><td class="print-centered">${escape(Math.ceil(item.students.length / pageSize))}</td><td>Форма ${config.format === 'R' ? 'Р' : 'М'}</td><td class="print-writing-cell"></td></tr>`).join('')}${last ? `<tr class="print-total"><th scope="row">Итого</th><td class="print-centered">${escape(totalStudents)}</td><td class="print-centered">${escape(totalPages)}</td><td colspan="2">Без учёта описи</td></tr>` : ''}</tbody></table>
+        ${last ? `<div class="print-inventory-summary"><p>Комплектов по параллелям: <strong>${escape(documents.length)}</strong></p><p>Всего листов с описью: <strong>${escape(totalPages + inventoryPages)}</strong></p><p>Дата формирования: ${escape(date)}</p><p class="print-signature">Ответственный: __________________________ &nbsp; Подпись: ______________</p></div>` : ''}
+        <footer class="print-page-footer"><span>${escape(group.title)}</span><span>Опись · ${escape(number)} / ${escape(inventoryPages)}</span></footer></section>`);
     }
-    
-    try {
-        showPreviewMessage('Загрузка данных учеников...');
-        
-        const response = await fetch('/api/students');
-        
-        if (!response.ok) {
-            throw new Error(`Ошибка загрузки учеников: ${response.status}`);
-        }
-        
-        const result = await response.json();
-        
-        if (result.success && result.students) {
-            // Фильтруем учеников по выбранному кабинету
-            currentStudents = result.students.filter(student => {
-                const inClassroom = parseInt(student.номер_кабинета) === parseInt(classroomNumber);
-                const hasPlace = student.номер_места !== null && student.номер_места !== undefined;
-                return inClassroom && hasPlace;
-            });
-            
-            currentClassroom = { номер_кабинета: classroomNumber };
-            currentSchool = null;
-            
-            console.log(`✅ Найдено учеников в кабинете ${classroomNumber}: ${currentStudents.length}`);
-            
-            updateActionButtons();
-            updatePreview();
-        }
-    } catch (error) {
-        console.error('❌ Ошибка загрузки данных:', error);
-        showNotification('Ошибка загрузки данных: ' + error.message, 'error');
-        resetData();
-    }
-}
+    return pages.join('');
+  }
 
-// Обработчик изменения школы
-async function handleSchoolChange(event) {
-    const schoolCode = event.target.value;
-    console.log('🎯 Выбрана школа:', schoolCode);
-    
-    if (!schoolCode) {
-        resetData();
-        return;
-    }
-    
-    try {
-        showPreviewMessage('Загрузка данных учеников...');
-        
-        const response = await fetch('/api/students');
-        
-        if (!response.ok) {
-            throw new Error(`Ошибка загрузки учеников: ${response.status}`);
-        }
-        
-        const result = await response.json();
-        
-        if (result.success && result.students) {
-            // Фильтруем учеников по выбранной школе
-            currentStudents = result.students.filter(student => {
-                const inSchool = (student.school_number_oo === schoolCode) || (student.school_code === schoolCode);
-                const hasPlace = student.номер_кабинета !== null && student.номер_места !== undefined;
-                return inSchool && hasPlace;
-            });
-            
-            // Находим название школы
-            const schoolSelect = document.getElementById('schoolSelect');
-            const selectedOption = schoolSelect.options[schoolSelect.selectedIndex];
-            const schoolName = selectedOption.textContent.split(' (')[0];
-            
-            currentSchool = { 
-                code: schoolCode,
-                name: schoolName
-            };
-            currentClassroom = null;
-            
-            console.log(`✅ Найдено учеников в школе ${schoolCode}: ${currentStudents.length}`);
-            
-            updateActionButtons();
-            updatePreview();
-        }
-    } catch (error) {
-        console.error('❌ Ошибка загрузки данных:', error);
-        showNotification('Ошибка загрузки данных: ' + error.message, 'error');
-        resetData();
-    }
-}
+  function renderDocuments(groups, config) {
+    return `<div class="print-document">${groups.map(group => documentPages(group, config)).join('')}</div>`;
+  }
 
-// Сброс данных
-function resetData() {
-    currentClassroom = null;
-    currentSchool = null;
-    currentStudents = [];
-    updateActionButtons();
-    clearPreview();
-}
+  function showSummary(groups, config) {
+    const counts = countPages(groups, config);
+    summary.innerHTML = `<span><strong>${escape(groups.length)}</strong> ${config.groupBy === 'classroom' ? 'кабинетов' : 'школ'}</span><span><strong>${escape(counts.students)}</strong> участников</span><span><strong>${escape(counts.lists)}</strong> листов списков</span><span><strong>${escape(counts.inventory)}</strong> листов описи</span>`;
+    summary.hidden = false;
+    previewStatus.textContent = `Форма ${config.format === 'R' ? 'Р' : 'М'} · ${counts.lists + counts.inventory} листов`;
+  }
 
-// Показать сообщение в превью
-function showPreviewMessage(message) {
-    const preview = document.getElementById('documentPreview');
-    if (preview) {
-        preview.innerHTML = `<div class="no-preview">${message}</div>`;
-    }
-}
+  async function runAction(button, label, action) {
+    if (working) return;
+    working = true;
+    syncButtons();
+    Exam.message(message, '');
+    try { await Exam.busy(button, label, action); }
+    catch (error) { Exam.message(message, error.message); }
+    finally { working = false; syncButtons(); }
+  }
 
-// Обновление кнопок действий
-function updateActionButtons() {
-    const hasData = currentStudents.length > 0;
-    const printBtn = document.getElementById('printBtn');
-    const exportExcelBtn = document.getElementById('exportExcelBtn');
-    const bulkPrintBtn = document.getElementById('bulkPrintBtn');
-    
-    if (printBtn) printBtn.disabled = !hasData;
-    if (exportExcelBtn) exportExcelBtn.disabled = !hasData;
-    if (bulkPrintBtn) bulkPrintBtn.disabled = !hasData;
-}
-
-// Очистка превью
-function clearPreview() {
-    showPreviewMessage('Выберите параметры для просмотра документа');
-}
-
-// Обновление превью документа
-function updatePreview() {
-    console.log('👀 Обновление превью документа');
-    
-    if (currentStudents.length === 0) {
-        return;
-    }
-    
-    const preview = document.getElementById('documentPreview');
-    if (!preview) {
-        return;
-    }
-    
-    if (currentFormat === 'R') {
-        preview.innerHTML = generateFormRPreview();
-    } else {
-        preview.innerHTML = generateFormMPreview();
-    }
-    
-    // Обновляем статистику
-    updateStats();
-}
-
-// Обновление статистики
-function updateStats() {
-    const statsInfo = document.getElementById('statsInfo');
-    const selectionType = document.getElementById('selectionType');
-    const studentsCount = document.getElementById('studentsCount');
-    const parallelsCount = document.getElementById('parallelsCount');
-    const currentMode = document.getElementById('currentMode');
-    
-    if (statsInfo && currentStudents.length > 0) {
-        statsInfo.style.display = 'block';
-        selectionType.textContent = currentGroupBy === 'classroom' ? 'Кабинет' : 'Школа';
-        studentsCount.textContent = currentStudents.length;
-        
-        // Подсчет уникальных параллелей
-        const parallels = new Set();
-        currentStudents.forEach(student => {
-            parallels.add(student.паралель);
-        });
-        parallelsCount.textContent = parallels.size;
-        
-        currentMode.textContent = `${currentGroupBy === 'classroom' ? 'Кабинеты' : 'Школы'} | ${currentFormat === 'R' ? 'Форма Р' : 'Форма М'} | ${groupByParallel ? 'По параллелям' : 'Единый список'}`;
-    }
-}
-
-// ========== ФОРМА Р ==========
-
-// Генерация превью формы Р
-function generateFormRPreview() {
-    if (currentStudents.length === 0) return '';
-    
-    let html = '';
-    
-    if (groupByParallel) {
-        // Группируем учеников по параллелям
-        const studentsByParallel = {};
-        currentStudents.forEach(student => {
-            const parallel = student.паралель;
-            if (!studentsByParallel[parallel]) {
-                studentsByParallel[parallel] = [];
-            }
-            studentsByParallel[parallel].push(student);
-        });
-        
-        // Генерируем документ для каждой параллели
-        Object.keys(studentsByParallel).sort().forEach(parallel => {
-            const parallelStudents = studentsByParallel[parallel];
-            html += generateParallelDocumentR(parallel, parallelStudents);
-        });
-    } else {
-        // Все ученики в одном документе
-        html += generateSingleDocumentR(currentStudents);
-    }
-    
-    // Добавляем опись
-    html += generateInventoryPageR();
-    
-    return html;
-}
-
-// Генерация документа для параллели (Форма Р)
-function generateParallelDocumentR(parallel, students) {
-    const subject = students[0]?.предмет || 'Предмет';
-    
-    return `
-        <div class="document-page">
-            <div class="document-header">
-                <div class="school-name">${getSchoolName()}</div>
-                <div class="document-title">Олимпиада по "${subject}". Муниципальный тур</div>
-                <div class="document-subtitle">ЛИСТ РЕГИСТРАЦИИ УЧАСТНИКОВ</div>
-                <div class="parallel-info">Класс ${parallel}</div>
-            </div>
-            
-            <table class="registration-table">
-                <thead>
-                    <tr>
-                        <th width="5%">№ п/п</th>
-                        <th width="15%">ОО</th>
-                        <th width="10%">Класс</th>
-                        <th width="30%">ФИО участника</th>
-                        <th width="10%">Ауд.</th>
-                        <th width="10%">Место</th>
-                        <th width="20%">Подпись</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${generateStudentsRowsR(students)}
-                </tbody>
-            </table>
-        </div>
-    `;
-}
-
-// Генерация единого документа (Форма Р)
-function generateSingleDocumentR(students) {
-    const subject = students[0]?.предмет || 'Предмет';
-    const title = currentGroupBy === 'classroom' ? 
-        `Кабинет №${currentClassroom?.номер_кабинета}` : 
-        `${currentSchool?.name || currentSchool?.code}`;
-    
-    return `
-        <div class="document-page">
-            <div class="document-header">
-                <div class="school-name">${getSchoolName()}</div>
-                <div class="document-title">Олимпиада по "${subject}". Муниципальный тур</div>
-                <div class="document-subtitle">ЛИСТ РЕГИСТРАЦИИ УЧАСТНИКОВ</div>
-                <div class="parallel-info">${title}</div>
-            </div>
-            
-            <table class="registration-table">
-                <thead>
-                    <tr>
-                        <th width="5%">№ п/п</th>
-                        <th width="15%">ОО</th>
-                        <th width="10%">Класс</th>
-                        <th width="30%">ФИО участника</th>
-                        <th width="10%">Ауд.</th>
-                        <th width="10%">Место</th>
-                        <th width="20%">Подпись</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${generateStudentsRowsR(students)}
-                </tbody>
-            </table>
-        </div>
-    `;
-}
-
-// Генерация строк таблицы для формы Р
-function generateStudentsRowsR(students) {
-    return students.map((student, index) => `
-        <tr>
-            <td class="text-center">${index + 1}</td>
-            <td class="text-center">${getStudentSchoolCode(student)}</td>
-            <td class="text-center">${student.паралель}</td>
-            <td>${student.фимилия} ${student.имя} ${student.отчество || ''}</td>
-            <td class="text-center">${student.номер_кабинета}</td>
-            <td class="text-center">${student.номер_места}</td>
-            <td class="signature-cell"></td>
-        </tr>
-    `).join('');
-}
-
-// Генерация страницы описи для формы Р
-function generateInventoryPageR() {
-    let totalStudents = currentStudents.length;
-    let totalPages = 0;
-    
-    if (groupByParallel) {
-        const studentsByParallel = {};
-        currentStudents.forEach(student => {
-            const parallel = student.паралель;
-            if (!studentsByParallel[parallel]) {
-                studentsByParallel[parallel] = [];
-            }
-            studentsByParallel[parallel].push(student);
-        });
-        
-        Object.keys(studentsByParallel).forEach(parallel => {
-            const parallelStudents = studentsByParallel[parallel];
-            totalPages += Math.ceil(parallelStudents.length / 25);
-        });
-    } else {
-        totalPages = Math.ceil(totalStudents / 25);
-    }
-    
-    const studentsByParallel = {};
-    currentStudents.forEach(student => {
-        const parallel = student.паралель;
-        if (!studentsByParallel[parallel]) {
-            studentsByParallel[parallel] = [];
-        }
-        studentsByParallel[parallel].push(student);
+  async function updatePreview() {
+    const config = settings();
+    const revision = previewRevision;
+    await runAction(buttons.preview, 'Подготовка…', async () => {
+      try {
+        previewStatus.textContent = 'Загрузка документов…';
+        const groups = await loadGroups(config);
+        if (revision !== previewRevision) return;
+        preview.innerHTML = renderDocuments(groups, config);
+        showSummary(groups, config);
+      } catch (error) {
+        previewStatus.textContent = 'Не удалось подготовить документы';
+        throw error;
+      }
     });
-    
-    return `
-        <div class="document-page inventory-page">
-            <div class="document-header">
-                <div class="school-name">${getSchoolName()}</div>
-                <div class="document-subtitle">ОПИСЬ ДОКУМЕНТОВ</div>
-                <div class="parallel-info">
-                    ${currentGroupBy === 'classroom' ? `Кабинет №${currentClassroom?.номер_кабинета}` : `Школа: ${currentSchool?.name || currentSchool?.code}`}
-                </div>
-            </div>
-            
-            <table class="inventory-table">
-                <thead>
-                    <tr>
-                        <th width="15%">Класс</th>
-                        <th width="15%">Количество учеников</th>
-                        <th width="10%"></th>
-                        <th width="30%">Количество страниц</th>
-                        <th width="30%">Примечание</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${groupByParallel ? 
-                        Object.keys(studentsByParallel).sort().map(parallel => {
-                            const parallelStudents = studentsByParallel[parallel];
-                            const pages = Math.ceil(parallelStudents.length / 25);
-                            return `
-                                <tr>
-                                    <td class="text-center">${parallel}</td>
-                                    <td class="text-center">${parallelStudents.length}</td>
-                                    <td></td>
-                                    <td class="text-center">${pages}</td>
-                                    <td></td>
-                                </tr>
-                            `;
-                        }).join('') :
-                        `
-                        <tr>
-                            <td class="text-center">Все классы</td>
-                            <td class="text-center">${totalStudents}</td>
-                            <td></td>
-                            <td class="text-center">${totalPages}</td>
-                            <td>Общий список</td>
-                        </tr>
-                        `
-                    }
-                    <tr class="total-row">
-                        <td class="text-center"><strong>ИТОГО:</strong></td>
-                        <td class="text-center"><strong>${totalStudents}</strong></td>
-                        <td></td>
-                        <td class="text-center"><strong>${totalPages}</strong></td>
-                        <td></td>
-                    </tr>
-                </tbody>
-            </table>
-            
-            <div class="inventory-footer">
-                <p><strong>Всего документов:</strong> ${groupByParallel ? Object.keys(studentsByParallel).length : 1}</p>
-                <p><strong>Общее количество страниц:</strong> ${totalPages}</p>
-                <p><strong>Дата формирования:</strong> ${new Date().toLocaleDateString('ru-RU')}</p>
-                <p><strong>Группировка:</strong> ${groupByParallel ? 'по параллелям' : 'единый список'}</p>
-            </div>
-        </div>
-    `;
-}
+  }
 
-// ========== ФОРМА М ==========
+  function openPrintWindow() {
+    const popup = window.open('', '_blank');
+    if (!popup) throw new Error('Браузер заблокировал окно печати. Разрешите всплывающие окна для этого сайта и повторите действие.');
+    popup.opener = null;
+    popup.document.open();
+    popup.document.write('<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Подготовка документов</title></head><body><p>Подготовка документов к печати…</p></body></html>');
+    popup.document.close();
+    return popup;
+  }
 
-// Генерация превью формы М
-function generateFormMPreview() {
-    if (currentStudents.length === 0) return '';
-    
-    let html = '';
-    
-    if (groupByParallel) {
-        // Группируем учеников по параллелям
-        const studentsByParallel = {};
-        currentStudents.forEach(student => {
-            const parallel = student.паралель;
-            if (!studentsByParallel[parallel]) {
-                studentsByParallel[parallel] = [];
-            }
-            studentsByParallel[parallel].push(student);
-        });
-        
-        // Генерируем документ для каждой параллели
-        Object.keys(studentsByParallel).sort().forEach(parallel => {
-            const parallelStudents = studentsByParallel[parallel];
-            html += generateParallelDocumentM(parallel, parallelStudents);
-        });
-    } else {
-        // Все ученики в одном документе
-        html += generateSingleDocumentM(currentStudents);
-    }
-    
-    // Добавляем опись для формы М
-    html += generateInventoryPageM();
-    
-    return html;
-}
-
-// Генерация документа для параллели (Форма М)
-function generateParallelDocumentM(parallel, students) {
-    const subject = students[0]?.предмет || 'Предмет';
-    
-    return `
-        <div class="document-page">
-            <div class="document-header">
-                <div class="school-name">${getSchoolName()}</div>
-                <div class="document-title">Олимпиада по "${subject}". Муниципальный тур</div>
-                <div class="document-subtitle">ФОРМА М - МОНИТОРИНГ РАССАДКИ УЧАСТНИКОВ</div>
-                <div class="parallel-info">Класс ${parallel}</div>
-            </div>
-            
-            <table class="registration-table">
-                <thead>
-                    <tr>
-                        <th width="5%">№ п/п</th>
-                        <th width="25%">Школа</th>
-                        <th width="10%">Класс</th>
-                        <th width="30%">ФИО участника</th>
-                        <th width="10%">Ауд.</th>
-                        <th width="10%">Место</th>
-                        <th width="10%">Примечание</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${generateStudentsRowsM(students)}
-                </tbody>
-            </table>
-        </div>
-    `;
-}
-
-// Генерация единого документа (Форма М)
-function generateSingleDocumentM(students) {
-    const subject = students[0]?.предмет || 'Предмет';
-    const title = currentGroupBy === 'classroom' ? 
-        `Кабинет №${currentClassroom?.номер_кабинета}` : 
-        `${currentSchool?.name || currentSchool?.code}`;
-    
-    return `
-        <div class="document-page">
-            <div class="document-header">
-                <div class="school-name">${getSchoolName()}</div>
-                <div class="document-title">Олимпиада по "${subject}". Муниципальный тур</div>
-                <div class="document-subtitle">ФОРМА М - МОНИТОРИНГ РАССАДКИ УЧАСТНИКОВ</div>
-                <div class="parallel-info">${title}</div>
-            </div>
-            
-            <table class="registration-table">
-                <thead>
-                    <tr>
-                        <th width="5%">№ п/п</th>
-                        <th width="25%">Школа</th>
-                        <th width="10%">Класс</th>
-                        <th width="30%">ФИО участника</th>
-                        <th width="10%">Ауд.</th>
-                        <th width="10%">Место</th>
-                        <th width="10%">Примечание</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${generateStudentsRowsM(students)}
-                </tbody>
-            </table>
-        </div>
-    `;
-}
-
-// Генерация строк таблицы для формы М
-function generateStudentsRowsM(students) {
-    return students.map((student, index) => `
-        <tr>
-            <td class="text-center">${index + 1}</td>
-            <td>${getStudentSchool(student)}</td>
-            <td class="text-center">${student.паралель}</td>
-            <td>${student.фимилия} ${student.имя} ${student.отчество || ''}</td>
-            <td class="text-center">${student.номер_кабинета}</td>
-            <td class="text-center">${student.номер_места}</td>
-            <td class="text-center"></td>
-        </tr>
-    `).join('');
-}
-
-// Генерация страницы описи для формы М
-function generateInventoryPageM() {
-    let totalStudents = currentStudents.length;
-    let totalPages = 0;
-    
-    if (groupByParallel) {
-        const studentsByParallel = {};
-        currentStudents.forEach(student => {
-            const parallel = student.паралель;
-            if (!studentsByParallel[parallel]) {
-                studentsByParallel[parallel] = [];
-            }
-            studentsByParallel[parallel].push(student);
-        });
-        
-        Object.keys(studentsByParallel).forEach(parallel => {
-            const parallelStudents = studentsByParallel[parallel];
-            totalPages += Math.ceil(parallelStudents.length / 25);
-        });
-    } else {
-        totalPages = Math.ceil(totalStudents / 25);
-    }
-    
-    const studentsByParallel = {};
-    currentStudents.forEach(student => {
-        const parallel = student.паралель;
-        if (!studentsByParallel[parallel]) {
-            studentsByParallel[parallel] = [];
-        }
-        studentsByParallel[parallel].push(student);
-    });
-    
-    return `
-        <div class="document-page inventory-page">
-            <div class="document-header">
-                <div class="school-name">${getSchoolName()}</div>
-                <div class="document-subtitle">ОПИСЬ ДОКУМЕНТОВ (ФОРМА М)</div>
-                <div class="parallel-info">
-                    ${currentGroupBy === 'classroom' ? `Кабинет №${currentClassroom?.номер_кабинета}` : `Школа: ${currentSchool?.name || currentSchool?.code}`}
-                </div>
-            </div>
-            
-            <table class="inventory-table">
-                <thead>
-                    <tr>
-                        <th width="15%">Класс</th>
-                        <th width="15%">Количество учеников</th>
-                        <th width="10%"></th>
-                        <th width="30%">Количество страниц</th>
-                        <th width="30%">Примечание</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${groupByParallel ? 
-                        Object.keys(studentsByParallel).sort().map(parallel => {
-                            const parallelStudents = studentsByParallel[parallel];
-                            const pages = Math.ceil(parallelStudents.length / 25);
-                            return `
-                                <tr>
-                                    <td class="text-center">${parallel}</td>
-                                    <td class="text-center">${parallelStudents.length}</td>
-                                    <td></td>
-                                    <td class="text-center">${pages}</td>
-                                    <td>Форма М</td>
-                                </tr>
-                            `;
-                        }).join('') :
-                        `
-                        <tr>
-                            <td class="text-center">Все классы</td>
-                            <td class="text-center">${totalStudents}</td>
-                            <td></td>
-                            <td class="text-center">${totalPages}</td>
-                            <td>Форма М - Общий список</td>
-                        </tr>
-                        `
-                    }
-                    <tr class="total-row">
-                        <td class="text-center"><strong>ИТОГО:</strong></td>
-                        <td class="text-center"><strong>${totalStudents}</strong></td>
-                        <td></td>
-                        <td class="text-center"><strong>${totalPages}</strong></td>
-                        <td></td>
-                    </tr>
-                </tbody>
-            </table>
-            
-            <div class="inventory-footer">
-                <p><strong>Всего документов:</strong> ${groupByParallel ? Object.keys(studentsByParallel).length : 1}</p>
-                <p><strong>Общее количество страниц:</strong> ${totalPages}</p>
-                <p><strong>Дата формирования:</strong> ${new Date().toLocaleDateString('ru-RU')}</p>
-                <p><strong>Форма:</strong> М (Мониторинг)</p>
-                <p><strong>Группировка:</strong> ${groupByParallel ? 'по параллелям' : 'единый список'}</p>
-            </div>
-        </div>
-    `;
-}
-
-// ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
-
-// Получить код школы ученика (для формы Р)
-function getStudentSchoolCode(student) {
-    return student.school_number_oo || student.school_code || "000000";
-}
-
-// Получить название школы ученика (для формы М)
-function getStudentSchool(student) {
-    return student.school_name_oo || student.school_name || "МОУ №1";
-}
-
-function getSchoolName() {
-    return "МУНИЦИПАЛЬНОЕ АВТОНОМНОЕ ОБЩЕОБРАЗОВАТЕЛЬНОЕ УЧРЕЖДЕНИЕ - СРЕДНЯЯ ОБЩЕОБРАЗОВАТЕЛЬНАЯ ШКОЛА № 25 ИМЕНИ В.Г. ФЕОФАНОВА";
-}
-
-// ========== ПЕЧАТЬ ФОРМЫ Р ==========
-
-function handlePrintR() {
-    console.log('🖨️ Запуск печати формы Р');
-    
-    if (currentStudents.length === 0) {
-        alert('Нет данных для печати');
-        return;
-    }
-    
-    const printContent = generateFormRPrintContent();
-    const printWindow = window.open('', '_blank');
-    
-    printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Форма Р - ${currentGroupBy === 'classroom' ? `Кабинет ${currentClassroom?.номер_кабинета}` : `Школа ${currentSchool?.name}`}</title>
-            <style>
-                body { font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.2; margin: 1cm; }
-                .print-page { page-break-after: always; }
-                .print-header { text-align: center; margin-bottom: 20pt; }
-                .school-name { font-size: 14pt; font-weight: bold; margin-bottom: 10pt; }
-                .document-title { font-size: 12pt; font-weight: bold; margin-bottom: 5pt; }
-                .document-subtitle { font-size: 12pt; font-weight: bold; margin-bottom: 5pt; text-transform: uppercase; }
-                .parallel-info { font-size: 12pt; margin-bottom: 15pt; }
-                .print-table { width: 100%; border-collapse: collapse; margin-bottom: 20pt; }
-                .print-table th, .print-table td { border: 1px solid #000; padding: 4pt 6pt; text-align: left; }
-                .print-table th { background-color: #f0f0f0; font-weight: bold; text-align: center; }
-                .inventory-table { width: 100%; border-collapse: collapse; margin-bottom: 20pt; }
-                .inventory-table th, .inventory-table td { border: 1px solid #000; padding: 6pt 8pt; text-align: left; }
-                .inventory-table th { background-color: #e0e0e0; font-weight: bold; text-align: center; }
-                .total-row { background-color: #f0f0f0; font-weight: bold; }
-                .text-center { text-align: center; }
-                .signature-cell { height: 20pt; }
-                .inventory-footer { margin-top: 30pt; border-top: 2px solid #000; padding-top: 10pt; }
-                .inventory-footer p { margin: 5pt 0; }
-                @media print { .print-page { page-break-after: always; } }
-            </style>
-        </head>
-        <body>${printContent}</body>
-        </html>
-    `);
-    
-    printWindow.document.close();
-    
-    setTimeout(() => {
-        printWindow.print();
-    }, 500);
-}
-
-// Генерация контента для печати формы Р
-function generateFormRPrintContent() {
-    if (currentStudents.length === 0) return '';
-    
-    let content = '';
-    
-    if (groupByParallel) {
-        const studentsByParallel = {};
-        currentStudents.forEach(student => {
-            const parallel = student.паралель;
-            if (!studentsByParallel[parallel]) {
-                studentsByParallel[parallel] = [];
-            }
-            studentsByParallel[parallel].push(student);
-        });
-        
-        Object.keys(studentsByParallel).sort().forEach(parallel => {
-            const parallelStudents = studentsByParallel[parallel];
-            content += generateParallelPrintContentR(parallel, parallelStudents);
-        });
-    } else {
-        content += generateSinglePrintContentR(currentStudents);
-    }
-    
-    content += generateInventoryPrintPageR();
-    
-    return content;
-}
-
-// Генерация контента для параллели (Форма Р)
-function generateParallelPrintContentR(parallel, students) {
-    const subject = students[0]?.предмет || 'Предмет';
-    let content = '';
-    let pageCount = 0;
-    
-    for (let i = 0; i < students.length; i += 25) {
-        const pageStudents = students.slice(i, i + 25);
-        pageCount++;
-        
-        content += `
-            <div class="print-page">
-                <div class="print-header">
-                    <div class="school-name">${getSchoolName()}</div>
-                    <div class="document-title">Олимпиада по "${subject}". Муниципальный тур</div>
-                    <div class="document-subtitle">ЛИСТ РЕГИСТРАЦИИ УЧАСТНИКОВ</div>
-                    <div class="parallel-info">Класс ${parallel}${pageCount > 1 ? ` (лист ${pageCount})` : ''}</div>
-                </div>
-                
-                <table class="print-table">
-                    <thead>
-                        <tr>
-                            <th width="5%">№ п/п</th>
-                            <th width="15%">ОО</th>
-                            <th width="10%">Класс</th>
-                            <th width="30%">ФИО участника</th>
-                            <th width="10%">Ауд.</th>
-                            <th width="10%">Место</th>
-                            <th width="20%">Подпись</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${generatePrintStudentsRowsR(pageStudents, i)}
-                    </tbody>
-                </table>
-            </div>
-        `;
-    }
-    
-    return content;
-}
-
-// Генерация единого контента (Форма Р)
-function generateSinglePrintContentR(students) {
-    const subject = students[0]?.предмет || 'Предмет';
-    const title = currentGroupBy === 'classroom' ? 
-        `Кабинет №${currentClassroom?.номер_кабинета}` : 
-        `${currentSchool?.name || currentSchool?.code}`;
-    
-    let content = '';
-    let pageCount = 0;
-    
-    for (let i = 0; i < students.length; i += 25) {
-        const pageStudents = students.slice(i, i + 25);
-        pageCount++;
-        
-        content += `
-            <div class="print-page">
-                <div class="print-header">
-                    <div class="school-name">${getSchoolName()}</div>
-                    <div class="document-title">Олимпиада по "${subject}". Муниципальный тур</div>
-                    <div class="document-subtitle">ЛИСТ РЕГИСТРАЦИИ УЧАСТНИКОВ</div>
-                    <div class="parallel-info">${title}${pageCount > 1 ? ` (лист ${pageCount})` : ''}</div>
-                </div>
-                
-                <table class="print-table">
-                    <thead>
-                        <tr>
-                            <th width="5%">№ п/п</th>
-                            <th width="15%">ОО</th>
-                            <th width="10%">Класс</th>
-                            <th width="30%">ФИО участника</th>
-                            <th width="10%">Ауд.</th>
-                            <th width="10%">Место</th>
-                            <th width="20%">Подпись</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${generatePrintStudentsRowsR(pageStudents, i)}
-                    </tbody>
-                </table>
-            </div>
-        `;
-    }
-    
-    return content;
-}
-
-// Генерация строк для печати (Форма Р)
-function generatePrintStudentsRowsR(students, startIndex) {
-    return students.map((student, index) => `
-        <tr>
-            <td class="text-center">${startIndex + index + 1}</td>
-            <td class="text-center">${getStudentSchoolCode(student)}</td>
-            <td class="text-center">${student.паралель}</td>
-            <td>${student.фимилия} ${student.имя} ${student.отчество || ''}</td>
-            <td class="text-center">${student.номер_кабинета}</td>
-            <td class="text-center">${student.номер_места}</td>
-            <td class="signature-cell"></td>
-        </tr>
-    `).join('');
-}
-
-// Генерация описи для печати (Форма Р)
-function generateInventoryPrintPageR() {
-    return generateInventoryPageR();
-}
-
-// ========== ПЕЧАТЬ ФОРМЫ М ==========
-
-function handlePrintM() {
-    console.log('🖨️ Запуск печати формы М');
-    
-    if (currentStudents.length === 0) {
-        alert('Нет данных для печати');
-        return;
-    }
-    
-    const printContent = generateFormMPrintContent();
-    const printWindow = window.open('', '_blank');
-    
-    printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Форма М - ${currentGroupBy === 'classroom' ? `Кабинет ${currentClassroom?.номер_кабинета}` : `Школа ${currentSchool?.name}`}</title>
-            <style>
-                body { font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.2; margin: 1cm; }
-                .print-page { page-break-after: always; }
-                .print-header { text-align: center; margin-bottom: 20pt; }
-                .school-name { font-size: 14pt; font-weight: bold; margin-bottom: 10pt; }
-                .document-title { font-size: 12pt; font-weight: bold; margin-bottom: 5pt; }
-                .document-subtitle { font-size: 12pt; font-weight: bold; margin-bottom: 5pt; text-transform: uppercase; }
-                .parallel-info { font-size: 12pt; margin-bottom: 15pt; }
-                .print-table { width: 100%; border-collapse: collapse; margin-bottom: 20pt; }
-                .print-table th, .print-table td { border: 1px solid #000; padding: 4pt 6pt; text-align: left; }
-                .print-table th { background-color: #f0f0f0; font-weight: bold; text-align: center; }
-                .inventory-table { width: 100%; border-collapse: collapse; margin-bottom: 20pt; }
-                .inventory-table th, .inventory-table td { border: 1px solid #000; padding: 6pt 8pt; text-align: left; }
-                .inventory-table th { background-color: #e0e0e0; font-weight: bold; text-align: center; }
-                .total-row { background-color: #f0f0f0; font-weight: bold; }
-                .text-center { text-align: center; }
-                .inventory-footer { margin-top: 30pt; border-top: 2px solid #000; padding-top: 10pt; }
-                .inventory-footer p { margin: 5pt 0; }
-                @media print { .print-page { page-break-after: always; } }
-            </style>
-        </head>
-        <body>${printContent}</body>
-        </html>
-    `);
-    
-    printWindow.document.close();
-    
-    setTimeout(() => {
-        printWindow.print();
-    }, 500);
-}
-
-// Генерация контента для печати формы М
-function generateFormMPrintContent() {
-    if (currentStudents.length === 0) return '';
-    
-    let content = '';
-    
-    if (groupByParallel) {
-        const studentsByParallel = {};
-        currentStudents.forEach(student => {
-            const parallel = student.паралель;
-            if (!studentsByParallel[parallel]) {
-                studentsByParallel[parallel] = [];
-            }
-            studentsByParallel[parallel].push(student);
-        });
-        
-        Object.keys(studentsByParallel).sort().forEach(parallel => {
-            const parallelStudents = studentsByParallel[parallel];
-            content += generateParallelPrintContentM(parallel, parallelStudents);
-        });
-    } else {
-        content += generateSinglePrintContentM(currentStudents);
-    }
-    
-    content += generateInventoryPrintPageM();
-    
-    return content;
-}
-
-// Генерация контента для параллели (Форма М)
-function generateParallelPrintContentM(parallel, students) {
-    const subject = students[0]?.предмет || 'Предмет';
-    let content = '';
-    let pageCount = 0;
-    
-    for (let i = 0; i < students.length; i += 25) {
-        const pageStudents = students.slice(i, i + 25);
-        pageCount++;
-        
-        content += `
-            <div class="print-page">
-                <div class="print-header">
-                    <div class="school-name">${getSchoolName()}</div>
-                    <div class="document-title">Олимпиада по "${subject}". Муниципальный тур</div>
-                    <div class="document-subtitle">ФОРМА М - МОНИТОРИНГ РАССАДКИ УЧАСТНИКОВ</div>
-                    <div class="parallel-info">Класс ${parallel}${pageCount > 1 ? ` (лист ${pageCount})` : ''}</div>
-                </div>
-                
-                <table class="print-table">
-                    <thead>
-                        <tr>
-                            <th width="5%">№ п/п</th>
-                            <th width="25%">Школа</th>
-                            <th width="10%">Класс</th>
-                            <th width="30%">ФИО участника</th>
-                            <th width="10%">Ауд.</th>
-                            <th width="10%">Место</th>
-                            <th width="10%">Примечание</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${generatePrintStudentsRowsM(pageStudents, i)}
-                    </tbody>
-                </table>
-            </div>
-        `;
-    }
-    
-    return content;
-}
-
-// Генерация единого контента (Форма М)
-function generateSinglePrintContentM(students) {
-    const subject = students[0]?.предмет || 'Предмет';
-    const title = currentGroupBy === 'classroom' ? 
-        `Кабинет №${currentClassroom?.номер_кабинета}` : 
-        `${currentSchool?.name || currentSchool?.code}`;
-    
-    let content = '';
-    let pageCount = 0;
-    
-    for (let i = 0; i < students.length; i += 25) {
-        const pageStudents = students.slice(i, i + 25);
-        pageCount++;
-        
-        content += `
-            <div class="print-page">
-                <div class="print-header">
-                    <div class="school-name">${getSchoolName()}</div>
-                    <div class="document-title">Олимпиада по "${subject}". Муниципальный тур</div>
-                    <div class="document-subtitle">ФОРМА М - МОНИТОРИНГ РАССАДКИ УЧАСТНИКОВ</div>
-                    <div class="parallel-info">${title}${pageCount > 1 ? ` (лист ${pageCount})` : ''}</div>
-                </div>
-                
-                <table class="print-table">
-                    <thead>
-                        <tr>
-                            <th width="5%">№ п/п</th>
-                            <th width="25%">Школа</th>
-                            <th width="10%">Класс</th>
-                            <th width="30%">ФИО участника</th>
-                            <th width="10%">Ауд.</th>
-                            <th width="10%">Место</th>
-                            <th width="10%">Примечание</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${generatePrintStudentsRowsM(pageStudents, i)}
-                    </tbody>
-                </table>
-            </div>
-        `;
-    }
-    
-    return content;
-}
-
-// Генерация строк для печати (Форма М)
-function generatePrintStudentsRowsM(students, startIndex) {
-    return students.map((student, index) => `
-        <tr>
-            <td class="text-center">${startIndex + index + 1}</td>
-            <td>${getStudentSchool(student)}</td>
-            <td class="text-center">${student.паралель}</td>
-            <td>${student.фимилия} ${student.имя} ${student.отчество || ''}</td>
-            <td class="text-center">${student.номер_кабинета}</td>
-            <td class="text-center">${student.номер_места}</td>
-            <td class="text-center"></td>
-        </tr>
-    `).join('');
-}
-
-// Генерация описи для печати (Форма М)
-function generateInventoryPrintPageM() {
-    return generateInventoryPageM();
-}
-
-// ========== ОБЩИЕ ФУНКЦИИ ПЕЧАТИ ==========
-
-// Обновление функции handlePrint для поддержки обеих форм
-function handlePrint() {
-    if (currentFormat === 'R') {
-        handlePrintR();
-    } else {
-        handlePrintM();
-    }
-}
-
-// Обработчик экспорта в Excel
-async function handleExportExcel() {
-    console.log('📊 Запуск экспорта в Excel');
-    
-    if (currentStudents.length === 0) {
-        alert('Нет данных для экспорта');
-        return;
-    }
-    
-    if (typeof XLSX === 'undefined') {
-        alert('Библиотека Excel не загружена');
-        return;
-    }
-    
+  async function waitForStyles(popup) {
     try {
-        // Простая реализация экспорта
+      const stylesheet = popup.document.querySelector('link[rel="stylesheet"]');
+      if (stylesheet.sheet) return;
+      await new Promise((resolve, reject) => {
+        let timer;
+        const clear = () => {
+          clearTimeout(timer);
+          stylesheet.removeEventListener('load', loaded);
+          stylesheet.removeEventListener('error', failed);
+        };
+        const loaded = () => { clear(); resolve(); };
+        const failed = () => { clear(); reject(new Error('Не удалось загрузить оформление печати. Повторите действие.')); };
+        stylesheet.addEventListener('load', loaded, {once: true});
+        stylesheet.addEventListener('error', failed, {once: true});
+        timer = setTimeout(failed, 15000);
+      });
+    } catch (error) { throw error; }
+  }
+
+  async function printDocuments(all, button) {
+    if (working) return;
+    let popup;
+    try { popup = openPrintWindow(); }
+    catch (error) { Exam.message(message, error.message); return; }
+    const config = settings(all);
+    await runAction(button, 'Подготовка печати…', async () => {
+      try {
+        const groups = await loadGroups(config);
+        if (popup.closed) throw new Error('Окно печати было закрыто. Повторите действие.');
+        const title = `Форма ${config.format === 'R' ? 'Р' : 'М'} · ${all ? 'Все группы' : groups[0].title}`;
+        popup.document.open();
+        popup.document.write(`<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(title)}</title><link rel="stylesheet" href="/assets/print.css"></head><body class="print-window"><header class="print-window-toolbar"><p>${escape(title)}</p><button type="button" id="nativePrintButton">Печать / Сохранить PDF</button></header><main>${renderDocuments(groups, config)}</main></body></html>`);
+        popup.document.close();
+        popup.document.getElementById('nativePrintButton').addEventListener('click', () => { popup.focus(); popup.print(); });
+        await waitForStyles(popup);
+        if (popup.closed) throw new Error('Окно печати было закрыто. Повторите действие.');
+        popup.focus();
+        popup.print();
+        Exam.toast(`Подготовлено ${countPages(groups, config).lists + countPages(groups, config).inventory} листов. В окне печати можно сохранить PDF.`);
+      } catch (error) {
+        if (!popup.closed) popup.close();
+        throw error;
+      }
+    });
+  }
+
+  function sheetName(value, names) {
+    const base = String(value).replace(/[\\/?*\[\]:]/g, ' ').replace(/'/g, '').trim().slice(0, 31) || 'Участники';
+    let name = base;
+    let count = 2;
+    while (names.has(name.toLocaleLowerCase('ru'))) {
+      const suffix = ` (${count++})`;
+      name = base.slice(0, 31 - suffix.length) + suffix;
+    }
+    names.add(name.toLocaleLowerCase('ru'));
+    return name;
+  }
+
+  function appendSheet(workbook, rows, title, names) {
+    const sheet = XLSX.utils.aoa_to_sheet(rows);
+    sheet['!cols'] = [{wch: 7}, {wch: 30}, {wch: 10}, {wch: 42}, {wch: 13}, {wch: 10}, {wch: 26}, {wch: 20}];
+    XLSX.utils.book_append_sheet(workbook, sheet, sheetName(title, names));
+  }
+
+  async function exportExcel(all, button) {
+    const config = settings(all);
+    await runAction(button, 'Создание Excel…', async () => {
+      try {
+        if (typeof XLSX === 'undefined') throw new Error('Не удалось загрузить модуль Excel. Обновите страницу и повторите действие.');
+        const groups = await loadGroups(config);
         const workbook = XLSX.utils.book_new();
-        const worksheetData = [
-            ['ФИО', 'Класс', 'Школа', 'Кабинет', 'Место', 'Предмет'],
-            ...currentStudents.map(student => [
-                `${student.фимилия} ${student.имя} ${student.отчество || ''}`,
-                student.паралель,
-                student.school_name_oo || student.school_name || '',
-                student.номер_кабинета,
-                student.номер_места,
-                student.предмет
-            ])
-        ];
-        
-        const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Ученики');
-        
-        const fileName = `Экспорт_${currentGroupBy === 'classroom' ? `Кабинет_${currentClassroom?.номер_кабинета}` : `Школа_${currentSchool?.code}`}.xlsx`;
-        XLSX.writeFile(workbook, fileName);
-        
-        showNotification('✅ Файл Excel успешно сохранен', 'success');
-    } catch (error) {
-        console.error('❌ Ошибка экспорта:', error);
-        alert('Ошибка экспорта: ' + error.message);
-    }
-}
+        const names = new Set();
+        const inventory = [['Группа', 'Параллель', 'Участников', 'Листов', 'Форма']];
+        for (const group of groups) {
+          const documents = documentsFor(group, config);
+          for (const item of documents) {
+            const rows = [[group.title], [config.format === 'R' ? 'Форма Р · Регистрация участников' : 'Форма М · Мониторинг рассадки'], [config.grouped ? `Параллель ${item.name}` : 'Все параллели'], [], ['№', config.format === 'R' ? 'Код ОО' : 'Школа', 'Класс', 'ФИО участника', 'Аудитория', 'Место', config.format === 'R' ? 'Подпись' : 'Примечание', 'Предмет']];
+            item.students.forEach((student, index) => rows.push([index + 1, String(config.format === 'R' ? student.school_number_oo ?? '' : student.school_name_oo || student.school_number_oo || ''), String(student.parallel ?? ''), String(student.full_name ?? ''), String(student.classroom ?? ''), String(student.place ?? ''), '', String(student.предмет ?? '')]));
+            appendSheet(workbook, rows, `${group.title}${config.grouped ? ` ${item.name}` : ''}`, names);
+            inventory.push([group.title, item.name, item.students.length, Math.ceil(item.students.length / pageSize), config.format === 'R' ? 'Р' : 'М']);
+          }
+        }
+        const counts = countPages(groups, config);
+        inventory.push(['Итого', '', counts.students, counts.lists, config.format === 'R' ? 'Р' : 'М']);
+        appendSheet(workbook, inventory, 'Опись', names);
+        const date = new Intl.DateTimeFormat('sv-SE', {timeZone: 'Asia/Yekaterinburg'}).format(new Date());
+        const filename = `Форма_${config.format === 'R' ? 'Р' : 'М'}_${all ? 'Все_группы' : groups[0].title.replace(/[\\/:*?"<>|]/g, '_')}_${date}.xlsx`;
+        XLSX.writeFile(workbook, filename);
+        Exam.toast(`Excel готов: ${counts.students} участников, ${groups.length} групп.`);
+      } catch (error) { throw error; }
+    });
+  }
 
-// Обработчик массовой печати
-function handleBulkPrint() {
-    console.log('🚀 Запуск массовой печати');
-    alert('Функция массовой печати находится в разработке');
-}
-
-// Показ уведомлений
-function showNotification(message, type = 'info') {
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    notification.textContent = message;
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 10px 20px;
-        background: ${type === 'success' ? '#4CAF50' : '#f44336'};
-        color: white;
-        border-radius: 5px;
-        z-index: 10000;
-    `;
-    document.body.appendChild(notification);
-    setTimeout(() => notification.remove(), 3000);
-}
+  grouping.addEventListener('change', populateSelection);
+  selection.addEventListener('change', resetPreview);
+  parallel.addEventListener('change', resetPreview);
+  form.querySelectorAll('input[name="printFormat"]').forEach(input => input.addEventListener('change', resetPreview));
+  form.addEventListener('submit', async event => { event.preventDefault(); try { await updatePreview(); } catch (error) { Exam.message(message, error.message); } });
+  buttons.print.addEventListener('click', async () => { try { await printDocuments(false, buttons.print); } catch (error) { Exam.message(message, error.message); } });
+  buttons.all.addEventListener('click', async () => { try { await printDocuments(true, buttons.all); } catch (error) { Exam.message(message, error.message); } });
+  buttons.excel.addEventListener('click', async () => { try { await exportExcel(false, buttons.excel); } catch (error) { Exam.message(message, error.message); } });
+  buttons.allExcel.addEventListener('click', async () => { try { await exportExcel(true, buttons.allExcel); } catch (error) { Exam.message(message, error.message); } });
+  syncButtons();
+  void loadOptions();
+})();

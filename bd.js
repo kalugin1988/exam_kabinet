@@ -1,14 +1,4 @@
-const { Pool } = require('pg');
-require('dotenv').config();
-
-// Настройка подключения к PostgreSQL
-const pool = new Pool({
-  host: process.env.PG_HOST,
-  port: process.env.PG_PORT,
-  database: process.env.PG_DATABASE,
-  user: process.env.PG_USER,
-  password: process.env.PG_PASSWORD,
-});
+const { pool, transaction, quoteIdentifier, tableExists, getTableColumns } = require('./src/database');
 
 // Константы
 const PARALLEL_COLORS = {
@@ -21,22 +11,34 @@ const RUSSIAN_LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З', 'И', '
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 
 const generateTableName = (subject) => {
-  return `subject_${subject.toLowerCase().replace(/\s+/g, '_')}`;
+  return `subject_${String(subject).normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '_')}`;
+};
+
+const classroomTableName = (classroomNumber) => {
+  if (!/^\d{1,9}$/.test(String(classroomNumber))) {
+    const error = new Error('Неверный номер кабинета');
+    error.status = 400;
+    throw error;
+  }
+  return `kabinet_${classroomNumber}`;
 };
 
 const checkColumnExists = async (tableName, columnName) => {
-  const result = await pool.query(`
-    SELECT column_name 
-    FROM information_schema.columns 
-    WHERE table_name = $1 AND column_name = $2
-  `, [tableName, columnName]);
-  return result.rows.length > 0;
+  const columns = await getTableColumns(tableName);
+  return columns.some(column => column.name === columnName);
 };
 
 const addColumnIfNotExists = async (tableName, columnName, dataType, defaultValue = '') => {
   const exists = await checkColumnExists(tableName, columnName);
   if (!exists) {
-    await pool.query(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${dataType} ${defaultValue}`);
+    // SQLite allows adding constant defaults, but not CURRENT_TIMESTAMP to
+    // populated tables. Add and backfill that optional legacy timestamp instead.
+    const timestampDefault = /DEFAULT CURRENT_TIMESTAMP/i.test(defaultValue);
+    const supportedDefault = timestampDefault ? '' : defaultValue;
+    await pool.query(`ALTER TABLE ${quoteIdentifier(tableName)} ADD COLUMN ${quoteIdentifier(columnName)} ${dataType} ${supportedDefault}`);
+    if (timestampDefault) {
+      await pool.query(`UPDATE ${quoteIdentifier(tableName)} SET ${quoteIdentifier(columnName)} = CURRENT_TIMESTAMP WHERE ${quoteIdentifier(columnName)} IS NULL`);
+    }
     console.log(`✅ Добавлено поле ${columnName} в таблицу ${tableName}`);
     return true;
   }
@@ -49,7 +51,7 @@ const initializeSchoolsTable = async () => {
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS schools (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         code VARCHAR(50) UNIQUE NOT NULL,
         name VARCHAR(500) NOT NULL,
         address VARCHAR(500),
@@ -68,7 +70,7 @@ const initializeOOTable = async () => {
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS oo (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         code_omsu VARCHAR(50),
         code_oo VARCHAR(50),
         number_oo VARCHAR(50),
@@ -78,7 +80,7 @@ const initializeOOTable = async () => {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    
+
     // Добавляем недостающие поля
     const columns = [
       { name: 'code_omsu', type: 'VARCHAR(50)' },
@@ -88,21 +90,21 @@ const initializeOOTable = async () => {
       { name: 'full_name', type: 'VARCHAR(500)', defaultValue: "DEFAULT 'Образовательное учреждение'" },
       { name: 'updated_at', type: 'TIMESTAMP', defaultValue: 'DEFAULT CURRENT_TIMESTAMP' }
     ];
-    
+
     for (const column of columns) {
       await addColumnIfNotExists('oo', column.name, column.type, column.defaultValue);
     }
-    
+
     // Добавляем запись по умолчанию
     const recordsExist = await pool.query('SELECT COUNT(*) FROM oo');
     if (parseInt(recordsExist.rows[0].count) === 0) {
       await pool.query(`
-        INSERT INTO oo (code_omsu, code_oo, number_oo, name_oo, full_name) 
+        INSERT INTO oo (code_omsu, code_oo, number_oo, name_oo, full_name)
         VALUES ('0000', '000000', '001', 'Образовательное учреждение', 'Полное наименование образовательного учреждения')
       `);
       console.log('✅ Добавлена запись по умолчанию в таблицу oo');
     }
-    
+
     console.log('✅ Таблица oo инициализирована');
   } catch (error) {
     console.error('❌ Ошибка инициализации таблицы oo:', error);
@@ -113,11 +115,11 @@ const initializeOOTable = async () => {
 const initializeDatabase = async () => {
   try {
     console.log('🔄 Инициализация базы данных...');
-    
+
     // Таблица Кабинеты
     await pool.query(`
       CREATE TABLE IF NOT EXISTS Кабинеты (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         номер_кабинета INTEGER UNIQUE NOT NULL,
         количество_парт INTEGER NOT NULL,
         количество_рядов_парт INTEGER NOT NULL,
@@ -129,7 +131,7 @@ const initializeDatabase = async () => {
     // Таблица Ученики
     await pool.query(`
       CREATE TABLE IF NOT EXISTS Ученики (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         фимилия VARCHAR(100) NOT NULL,
         имя VARCHAR(100) NOT NULL,
         отчество VARCHAR(100),
@@ -149,7 +151,7 @@ const initializeDatabase = async () => {
     // Таблица предметов
     await pool.query(`
       CREATE TABLE IF NOT EXISTS id_subject (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         subject VARCHAR(100) UNIQUE NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -159,7 +161,7 @@ const initializeDatabase = async () => {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS classroom_layouts (
         classroom_id INTEGER PRIMARY KEY,
-        row_mapping JSONB NOT NULL,
+        row_mapping TEXT NOT NULL,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -176,7 +178,7 @@ const initializeDatabase = async () => {
       { name: 'school_name_oo', type: 'VARCHAR(500)' },
       { name: 'participant_code', type: 'VARCHAR(50)' }
     ];
-    
+
     for (const column of studentColumns) {
       await addColumnIfNotExists('Ученики', column.name, column.type);
     }
@@ -192,56 +194,58 @@ const initializeDatabase = async () => {
 
 const importStudentsFromSubjectTable = async (students, subject) => {
   try {
-    console.log(`🔄 Импорт учеников для предмета: ${subject}`);
-    
-    await pool.query('DELETE FROM Ученики WHERE предмет = $1', [subject]);
-    
-    let importedCount = 0;
-    for (const student of students) {
-      const surname = student.surname || student.фимилия || student.last_name;
-      const name = student.name || student.имя || student.first_name;
-      const patronymic = student.patronymic || student.отчество || student.middle_name;
-      const parallel = student.parallel || student.паралель || student.class;
-      
-      if (surname && name && parallel) {
-        await pool.query(
-          `INSERT INTO Ученики (
-            фимилия, имя, отчество, паралель, предмет,
-            school_code, school_name, school_number_oo, school_name_oo, participant_code
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-          [
-            surname, 
-            name, 
-            patronymic || '', 
-            parallel, 
-            subject,
-            student.school_code || '',
-            student.school_name || '',
-            student.school_number_oo || '',
-            student.school_name_oo || '',
-            student.participant_code || ''
-          ]
-        );
-        importedCount++;
+    return await transaction(async () => {
+      console.log(`🔄 Импорт учеников для предмета: ${subject}`);
+
+      await pool.query('DELETE FROM Ученики WHERE предмет = $1', [subject]);
+
+      let importedCount = 0;
+      for (const student of students) {
+        const surname = student.surname || student.фимилия || student.last_name;
+        const name = student.name || student.имя || student.first_name;
+        const patronymic = student.patronymic || student.отчество || student.middle_name;
+        const parallel = student.parallel || student.паралель || student.class;
+
+        if (surname && name && parallel) {
+          await pool.query(
+            `INSERT INTO Ученики (
+              фимилия, имя, отчество, паралель, предмет,
+              school_code, school_name, school_number_oo, school_name_oo, participant_code
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            [
+              surname,
+              name,
+              patronymic || '',
+              parallel,
+              subject,
+              student.school_code || '',
+              student.school_name || '',
+              student.school_number_oo || '',
+              student.school_name_oo || '',
+              student.participant_code || ''
+            ]
+          );
+          importedCount++;
+        }
       }
-    }
-    
-    console.log(`✅ Успешно импортировано ${importedCount} учеников`);
-    return true;
+
+      console.log(`✅ Успешно импортировано ${importedCount} учеников`);
+      return true;
+    });
   } catch (error) {
     console.error('❌ Ошибка импорта учеников:', error);
-    return false;
+    throw error;
   }
 };
 
 const updateStudentFields = async (studentId, studentData) => {
   try {
-    const { 
-      school_code, school_name, school_number_oo, school_name_oo, participant_code 
+    const {
+      school_code, school_name, school_number_oo, school_name_oo, participant_code
     } = studentData;
-    
+
     await pool.query(
-      `UPDATE Ученики SET 
+      `UPDATE Ученики SET
         school_code = COALESCE($1, school_code),
         school_name = COALESCE($2, school_name),
         school_number_oo = COALESCE($3, school_number_oo),
@@ -258,29 +262,31 @@ const updateStudentFields = async (studentId, studentData) => {
         studentId
       ]
     );
-    
+
     console.log(`✅ Обновлены поля ученика ID=${studentId}`);
     return true;
   } catch (error) {
     console.error(`❌ Ошибка обновления полей ученика ID=${studentId}:`, error);
-    return false;
+    throw error;
   }
 };
 
 const updateStudentPlaceWithDetails = async (studentId, classroomNumber, placeNumber, studentData = {}) => {
   try {
-    // Обновляем место
-    await updateStudentPlace(studentId, classroomNumber, placeNumber);
-    
-    // Обновляем дополнительные поля, если они предоставлены
-    if (Object.keys(studentData).length > 0) {
-      await updateStudentFields(studentId, studentData);
-    }
-    
-    return true;
+    return await transaction(async () => {
+      // Обновляем место
+      await updateStudentPlace(studentId, classroomNumber, placeNumber);
+
+      // Обновляем дополнительные поля, если они предоставлены
+      if (Object.keys(studentData).length > 0) {
+        await updateStudentFields(studentId, studentData);
+      }
+
+      return true;
+    });
   } catch (error) {
     console.error(`❌ Ошибка обновления ученика ID=${studentId}:`, error);
-    return false;
+    throw error;
   }
 };
 
@@ -288,126 +294,129 @@ const updateStudentPlaceWithDetails = async (studentId, classroomNumber, placeNu
 
 const createClassroomTable = async (classroomNumber) => {
   try {
-    const tableName = `kabinet_${classroomNumber}`;
-    
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS ${tableName} (
-        id SERIAL PRIMARY KEY,
-        номер_места VARCHAR(10) UNIQUE NOT NULL,
-        номер_парты INTEGER NOT NULL,
-        буква_места VARCHAR(1) NOT NULL,
-        занято BOOLEAN DEFAULT FALSE,
-        заблокировано BOOLEAN DEFAULT FALSE,
-        id_ученика INTEGER,
-        фимилия_ученика VARCHAR(100),
-        имя_ученика VARCHAR(100),
-        отчество_ученика VARCHAR(100),
-        паралель_ученика VARCHAR(10),
-        предмет_ученика VARCHAR(100),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    
-    await populateClassroomTable(classroomNumber, tableName);
-    return true;
+    return await transaction(async () => {
+      const tableName = classroomTableName(classroomNumber);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS ${quoteIdentifier(tableName)} (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          номер_места VARCHAR(10) UNIQUE NOT NULL,
+          номер_парты INTEGER NOT NULL,
+          буква_места VARCHAR(1) NOT NULL,
+          занято BOOLEAN DEFAULT FALSE,
+          заблокировано BOOLEAN DEFAULT FALSE,
+          id_ученика INTEGER,
+          фимилия_ученика VARCHAR(100),
+          имя_ученика VARCHAR(100),
+          отчество_ученика VARCHAR(100),
+          паралель_ученика VARCHAR(10),
+          предмет_ученика VARCHAR(100),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      await populateClassroomTable(classroomNumber, tableName);
+      return true;
+    });
   } catch (error) {
     console.error(`❌ Ошибка создания таблицы кабинета ${classroomNumber}:`, error);
-    return false;
+    throw error;
   }
 };
 
 const populateClassroomTable = async (classroomNumber, tableName) => {
   try {
-    const classroomResult = await pool.query(
-      'SELECT количество_парт, количество_рядов_парт FROM Кабинеты WHERE номер_кабинета = $1',
-      [classroomNumber]
-    );
-    
-    if (classroomResult.rows.length === 0) {
-      console.error(`❌ Кабинет ${classroomNumber} не найден`);
-      return false;
+    if (tableName !== classroomTableName(classroomNumber)) {
+      const error = new Error('Неверная таблица кабинета');
+      error.status = 400;
+      throw error;
     }
-    
-    const classroom = classroomResult.rows[0];
-    const totalDesks = classroom.количество_парт;
-    const rows = classroom.количество_рядов_парт;
-    
-    await pool.query(`DELETE FROM ${tableName}`);
-    
-    const desksPerRow = Math.ceil(totalDesks / rows);
-    let deskCounter = 0;
-    
-    for (let row = 1; row <= rows; row++) {
-      const rowLetterIndex = (row - 1) * 2;
-      
-      if (rowLetterIndex >= RUSSIAN_LETTERS.length - 1) {
-        console.log(`⚠️ Превышен лимит букв для рядов`);
-        break;
+    return await transaction(async () => {
+      const classroomResult = await pool.query(
+        'SELECT количество_парт, количество_рядов_парт FROM Кабинеты WHERE номер_кабинета = $1',
+        [classroomNumber]
+      );
+
+      if (classroomResult.rows.length === 0) {
+        const error = new Error(`Кабинет ${classroomNumber} не найден`);
+        error.status = 404;
+        throw error;
       }
-      
-      const leftLetter = RUSSIAN_LETTERS[rowLetterIndex];
-      const rightLetter = RUSSIAN_LETTERS[rowLetterIndex + 1];
-      
-      for (let deskInRow = 1; deskInRow <= desksPerRow; deskInRow++) {
-        deskCounter++;
-        if (deskCounter > totalDesks) break;
-        
-        const deskNumber = deskInRow;
-        const placeLeft = `${deskNumber}${leftLetter}`;
-        const placeRight = `${deskNumber}${rightLetter}`;
-        
-        await pool.query(
-          `INSERT INTO ${tableName} (номер_места, номер_парты, буква_места) VALUES ($1, $2, $3)`,
-          [placeLeft, deskNumber, leftLetter]
-        );
-        
-        await pool.query(
-          `INSERT INTO ${tableName} (номер_места, номер_парты, буква_места) VALUES ($1, $2, $3)`,
-          [placeRight, deskNumber, rightLetter]
-        );
+
+      const classroom = classroomResult.rows[0];
+      const totalDesks = classroom.количество_парт;
+      const rows = classroom.количество_рядов_парт;
+
+      await pool.query(`DELETE FROM ${quoteIdentifier(tableName)}`);
+
+      const desksPerRow = Math.ceil(totalDesks / rows);
+      let deskCounter = 0;
+
+      for (let row = 1; row <= rows; row++) {
+        const rowLetterIndex = (row - 1) * 2;
+
+        if (rowLetterIndex >= RUSSIAN_LETTERS.length - 1) {
+          console.log(`⚠️ Превышен лимит букв для рядов`);
+          break;
+        }
+
+        const leftLetter = RUSSIAN_LETTERS[rowLetterIndex];
+        const rightLetter = RUSSIAN_LETTERS[rowLetterIndex + 1];
+
+        for (let deskInRow = 1; deskInRow <= desksPerRow; deskInRow++) {
+          deskCounter++;
+          if (deskCounter > totalDesks) break;
+
+          const deskNumber = deskInRow;
+          const placeLeft = `${deskNumber}${leftLetter}`;
+          const placeRight = `${deskNumber}${rightLetter}`;
+
+          await pool.query(
+            `INSERT INTO ${quoteIdentifier(tableName)} (номер_места, номер_парты, буква_места) VALUES ($1, $2, $3)`,
+            [placeLeft, deskNumber, leftLetter]
+          );
+
+          await pool.query(
+            `INSERT INTO ${quoteIdentifier(tableName)} (номер_места, номер_парты, буква_места) VALUES ($1, $2, $3)`,
+            [placeRight, deskNumber, rightLetter]
+          );
+        }
+
+        if (deskCounter >= totalDesks) break;
       }
-      
-      if (deskCounter >= totalDesks) break;
-    }
-    
-    const countResult = await pool.query(`SELECT COUNT(*) FROM ${tableName}`);
-    console.log(`✅ Таблица ${tableName} заполнена: ${countResult.rows[0].count} мест`);
-    
-    return true;
+
+      const countResult = await pool.query(`SELECT COUNT(*) FROM ${quoteIdentifier(tableName)}`);
+      console.log(`✅ Таблица ${tableName} заполнена: ${countResult.rows[0].count} мест`);
+
+      return true;
+    });
   } catch (error) {
     console.error(`❌ Ошибка заполнения таблицы кабинета ${classroomNumber}:`, error);
-    return false;
+    throw error;
   }
 };
 
 const initializeExistingClassroomTables = async () => {
   try {
     console.log('🔄 Проверка таблиц существующих кабинетов...');
-    
+
     const classrooms = await pool.query('SELECT номер_кабинета FROM Кабинеты ORDER BY номер_кабинета');
-    
+
     for (const classroom of classrooms.rows) {
-      const tableName = `kabinet_${classroom.номер_кабинета}`;
-      
-      const tableExists = await pool.query(`
-        SELECT EXISTS (
-          SELECT FROM information_schema.tables 
-          WHERE table_schema = 'public' 
-          AND table_name = $1
-        )
-      `, [tableName]);
-      
-      if (!tableExists.rows[0].exists) {
+      const tableName = classroomTableName(classroom.номер_кабинета);
+
+      if (!(await tableExists(tableName))) {
         await createClassroomTable(classroom.номер_кабинета);
       } else {
         await addColumnIfNotExists(tableName, 'заблокировано', 'BOOLEAN', 'DEFAULT FALSE');
       }
     }
-    
+
     console.log('✅ Проверка таблиц кабинетов завершена');
   } catch (error) {
     console.error('❌ Ошибка инициализации таблиц кабинетов:', error);
+    throw error;
   }
 };
 
@@ -417,12 +426,12 @@ const checkPlacementRules = (student, classroomNumber, placeNumber, classmates) 
   const place = placeNumber;
   const placeDesk = parseInt(place.slice(0, -1));
   const placeLetter = place.slice(-1);
-  
+
   const currentLetterIndex = RUSSIAN_LETTERS.indexOf(placeLetter);
   if (currentLetterIndex < 0) return false;
-  
+
   const forbiddenPlaces = [];
-  
+
   // Место в той же парте
   if (currentLetterIndex % 2 === 0) {
     if (currentLetterIndex + 1 < RUSSIAN_LETTERS.length) {
@@ -433,11 +442,11 @@ const checkPlacementRules = (student, classroomNumber, placeNumber, classmates) 
       forbiddenPlaces.push(`${placeDesk}${RUSSIAN_LETTERS[currentLetterIndex - 1]}`);
     }
   }
-  
+
   // Место перед и за текущим
   if (placeDesk > 1) forbiddenPlaces.push(`${placeDesk - 1}${placeLetter}`);
-  if (placeDesk < 10) forbiddenPlaces.push(`${placeDesk + 1}${placeLetter}`);
-  
+  forbiddenPlaces.push(`${placeDesk + 1}${placeLetter}`);
+
   // Проверяем запрещенные места
   for (const forbiddenPlace of forbiddenPlaces) {
     const adjacentStudent = classmates.find(s => s.номер_места === forbiddenPlace);
@@ -445,7 +454,7 @@ const checkPlacementRules = (student, classroomNumber, placeNumber, classmates) 
       return false;
     }
   }
-  
+
   return true;
 };
 
@@ -526,12 +535,12 @@ const clearAllStudents = async () => {
 
 const getStudentsWithPlaces = async () => {
   const result = await pool.query(`
-    SELECT 
+    SELECT
       Ученики.*,
       Кабинеты.этаж
-    FROM Ученики 
+    FROM Ученики
     LEFT JOIN Кабинеты ON Ученики.номер_кабинета = Кабинеты.номер_кабинета
-    WHERE Ученики.номер_кабинета IS NOT NULL 
+    WHERE Ученики.номер_кабинета IS NOT NULL
     AND Ученики.номер_места IS NOT NULL
     ORDER BY Ученики.паралель, Ученики.фимилия
   `);
@@ -539,13 +548,13 @@ const getStudentsWithPlaces = async () => {
 };
 
 const insertStudent = async (studentData) => {
-  const { 
-    id, фимилия, имя, отчество, паралель, предмет, 
+  const {
+    id, фимилия, имя, отчество, паралель, предмет,
     номер_кабинета, номер_места, school_code, school_name,
-    school_number_oo, school_name_oo, participant_code 
+    school_number_oo, school_name_oo, participant_code
   } = studentData;
-  
-  const query = id ? 
+
+  const query = id ?
     `INSERT INTO Ученики (
       id, фимилия, имя, отчество, паралель, предмет, номер_кабинета, номер_места,
       school_code, school_name, school_number_oo, school_name_oo, participant_code
@@ -554,20 +563,20 @@ const insertStudent = async (studentData) => {
       фимилия, имя, отчество, паралель, предмет, номер_кабинета, номер_места,
       school_code, school_name, school_number_oo, school_name_oo, participant_code
     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`;
-  
-  const params = id ? 
+
+  const params = id ?
     [id, фимилия, имя, отчество || '', паралель, предмет, номер_кабинета, номер_места,
      school_code || '', school_name || '', school_number_oo || '', school_name_oo || '', participant_code || ''] :
     [фимилия, имя, отчество || '', паралель, предмет, номер_кабинета, номер_места,
      school_code || '', school_name || '', school_number_oo || '', school_name_oo || '', participant_code || ''];
-  
+
   await pool.query(query, params);
 };
 
 // Места в кабинетах
 const getClassroomPlaces = async (classroomNumber) => {
-  const tableName = `kabinet_${classroomNumber}`;
-  const result = await pool.query(`SELECT номер_места, заблокировано FROM ${tableName} ORDER BY номер_парты, буква_места`);
+  const tableName = classroomTableName(classroomNumber);
+  const result = await pool.query(`SELECT номер_места, заблокировано FROM ${quoteIdentifier(tableName)} ORDER BY номер_парты, буква_места`);
   return result.rows;
 };
 
@@ -580,17 +589,17 @@ const getOccupiedPlaces = async (classroomNumber) => {
 };
 
 const updatePlaceBlockStatus = async (classroomNumber, placeNumber, blocked) => {
-  const tableName = `kabinet_${classroomNumber}`;
+  const tableName = classroomTableName(classroomNumber);
   await pool.query(
-    `UPDATE ${tableName} SET заблокировано = $1 WHERE номер_места = $2`,
+    `UPDATE ${quoteIdentifier(tableName)} SET заблокировано = $1 WHERE номер_места = $2`,
     [blocked, placeNumber]
   );
 };
 
 const getBlockedPlaces = async (classroomNumber) => {
-  const tableName = `kabinet_${classroomNumber}`;
+  const tableName = classroomTableName(classroomNumber);
   const result = await pool.query(
-    `SELECT номер_места FROM ${tableName} WHERE заблокировано = true ORDER BY номер_парты, буква_места`
+    `SELECT номер_места FROM ${quoteIdentifier(tableName)} WHERE заблокировано = true ORDER BY номер_парты, буква_места`
   );
   return result.rows.map(row => row.номер_места);
 };
@@ -598,9 +607,9 @@ const getBlockedPlaces = async (classroomNumber) => {
 // Конфигурация рядов
 const updateClassroomLayout = async (classroomId, rowMapping) => {
   await pool.query(`
-    INSERT INTO classroom_layouts (classroom_id, row_mapping) 
+    INSERT INTO classroom_layouts (classroom_id, row_mapping)
     VALUES ($1, $2)
-    ON CONFLICT (classroom_id) 
+    ON CONFLICT (classroom_id)
     DO UPDATE SET row_mapping = $2, updated_at = CURRENT_TIMESTAMP
   `, [classroomId, JSON.stringify(rowMapping)]);
 };
@@ -623,17 +632,17 @@ const moveDesk = async (classroomNumber, fromRow, fromDesk, toRow, toDesk) => {
   const fromRightLetter = RUSSIAN_LETTERS[(fromRow - 1) * 2 + 1];
   const toLeftLetter = RUSSIAN_LETTERS[(toRow - 1) * 2];
   const toRightLetter = RUSSIAN_LETTERS[(toRow - 1) * 2 + 1];
-  
+
   const fromPlaceLeft = `${fromDesk}${fromLeftLetter}`;
   const fromPlaceRight = `${fromDesk}${fromRightLetter}`;
   const toPlaceLeft = `${toDesk}${toLeftLetter}`;
   const toPlaceRight = `${toDesk}${toRightLetter}`;
-  
+
   await pool.query(
     'UPDATE Ученики SET номер_места = $1 WHERE номер_кабинета = $2 AND номер_места = $3',
     [toPlaceLeft, classroomNumber, fromPlaceLeft]
   );
-  
+
   await pool.query(
     'UPDATE Ученики SET номер_места = $1 WHERE номер_кабинета = $2 AND номер_места = $3',
     [toPlaceRight, classroomNumber, fromPlaceRight]
@@ -663,12 +672,12 @@ const createOO = async (ooData) => {
 
 const updateOO = async (id, ooData) => {
   const { code_omsu, code_oo, number_oo, name_oo, full_name } = ooData;
-  
+
   const hasUpdatedAt = await checkColumnExists('oo', 'updated_at');
-  const query = hasUpdatedAt ? 
+  const query = hasUpdatedAt ?
     'UPDATE oo SET code_omsu = $1, code_oo = $2, number_oo = $3, name_oo = $4, full_name = $5, updated_at = CURRENT_TIMESTAMP WHERE id = $6 RETURNING *' :
     'UPDATE oo SET code_omsu = $1, code_oo = $2, number_oo = $3, name_oo = $4, full_name = $5 WHERE id = $6 RETURNING *';
-  
+
   const result = await pool.query(query, [
     code_omsu || '', code_oo || '', number_oo || '', name_oo || '', full_name, id
   ]);
@@ -730,14 +739,14 @@ module.exports = {
   createClassroomTable,
   populateClassroomTable,
   checkPlacementRules,
-  
+
   // Кабинеты
   getAllClassrooms,
   getClassroomById,
   createClassroom,
   updateClassroom,
   deleteClassroom,
-  
+
   // Ученики
   getAllStudents,
   getUnplacedStudents,
@@ -750,37 +759,37 @@ module.exports = {
   clearAllStudents,
   getStudentsWithPlaces,
   insertStudent,
-  
+
   // Места в кабинетах
   getClassroomPlaces,
   getOccupiedPlaces,
   updatePlaceBlockStatus,
   getBlockedPlaces,
-  
+
   // Конфигурация рядов
   updateClassroomLayout,
   getClassroomLayout,
   deleteClassroomLayout,
-  
+
   // Перемещение парт
   moveDesk,
-  
+
   // Предметы
   getSubjects,
-  
+
   // Образовательные учреждения
   getAllOO,
   createOO,
   updateOO,
   deleteOO,
-  
+
   // Школы
   getSchoolByName,
   getAllSchools,
   createSchool,
   updateSchool,
   deleteSchool,
-  
+
   // Здоровье
   healthCheck
 };

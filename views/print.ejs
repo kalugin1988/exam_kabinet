@@ -1,315 +1,34 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Печать документов - Система рассадки</title>
-    <link rel="stylesheet" href="/style.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-</head>
-<body>
-    <div class="print-container">
-        <!-- Шапка страницы -->
-        <div class="print-header">
-            <h1>🖨️ Печать документов</h1>
-            <a href="/" class="back-button">← Назад к рассадке</a>
-        </div>
+<%- include('partials/header', {pageTitle: 'Печать Р и М', activePage: 'forms'}) %>
+<link rel="stylesheet" href="/assets/print.css">
+<div class="page-heading">
+  <div><p class="eyebrow">Документы · Формы Р и М</p><h1>Регистрация и мониторинг</h1><p class="lead">Подготовьте списки участников по кабинетам или школам. В каждом комплекте — листы по 25 участников и опись.</p></div>
+  <a class="btn btn-secondary" href="/forms">Все документы</a>
+</div>
 
-        <!-- Панель управления -->
-        <div class="print-controls-panel">
-            <div class="controls-grid">
-                <div>
-                    <!-- Группировка -->
-                    <div class="control-group">
-                        <label>Группировка:</label>
-                        <div class="radio-group">
-                            <label class="radio-label">
-                                <input type="radio" name="groupBy" value="classroom" checked>
-                                <span class="radio-text">🏫 По кабинетам</span>
-                            </label>
-                            <label class="radio-label">
-                                <input type="radio" name="groupBy" value="school">
-                                <span class="radio-text">🎓 По школам</span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <!-- Формат документа -->
-                    <div class="control-group">
-                        <label>Формат документа:</label>
-                        <div class="radio-group">
-                            <label class="radio-label">
-                                <input type="radio" name="format" value="R" checked>
-                                <span class="radio-text">📋 Форма Р (Регистрация)</span>
-                            </label>
-                            <label class="radio-label">
-                                <input type="radio" name="format" value="M">
-                                <span class="radio-text">📊 Форма М (Мониторинг)</span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <!-- Выбор кабинета/школы -->
-                    <div class="control-group" id="classroomGroup">
-                        <label for="classroomSelect">Выберите кабинет:</label>
-                        <select id="classroomSelect" class="form-control">
-                            <option value="">Загрузка кабинетов...</option>
-                        </select>
-                    </div>
-
-                    <div class="control-group" id="schoolGroup" style="display: none;">
-                        <label for="schoolSelect">Выберите школу:</label>
-                        <select id="schoolSelect" class="form-control">
-                            <option value="">Загрузка школ...</option>
-                        </select>
-                    </div>
-
-                    <!-- Дополнительные опции -->
-                    <div class="checkbox-group">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="groupByParallel" checked>
-                            📊 Группировать листы по параллелям
-                        </label>
-                    </div>
-
-                    <!-- Информация о выборе -->
-                    <div class="selection-info" id="selectionInfo" style="display: none;">
-                        <p><strong>Режим:</strong> <span id="modeInfo">группировка по кабинетам</span></p>
-                        <p><strong>Формат:</strong> <span id="formatInfo">Форма Р</span></p>
-                        <p><strong>Группировка:</strong> <span id="parallelInfo">по параллелям</span></p>
-                    </div>
-                </div>
-
-                <div class="action-buttons">
-                    <button id="printBtn" class="btn btn-success" disabled>
-                        🖨️ Печать
-                    </button>
-                    <button id="exportExcelBtn" class="btn btn-info" disabled>
-                        📊 Excel
-                    </button>
-                    <button id="bulkPrintBtn" class="btn btn-warning" disabled>
-                        🚀 Массовая печать
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Статистика -->
-        <div class="stats-info" id="statsInfo" style="display: none;">
-            <p><strong>Выборка:</strong> <span id="selectionType">-</span></p>
-            <p><strong>Учеников:</strong> <span id="studentsCount">0</span></p>
-            <p><strong>Параллелей:</strong> <span id="parallelsCount">0</span></p>
-            <p><strong>Режим:</strong> <span id="currentMode">-</span></p>
-        </div>
-
-        <!-- Предпросмотр документа -->
-        <div class="preview-section">
-            <h2>👁️ Предпросмотр документа</h2>
-            <div class="document-preview" id="documentPreview">
-                <div class="no-preview">
-                    Выберите параметры для просмотра документа
-                </div>
-            </div>
-        </div>
-
-        <!-- Информация о системе -->
-        <div class="stats-info">
-            <p><strong>Система печати документов</strong></p>
-            <p>Поддержка форм Р (Регистрация) и М (Мониторинг)</p>
-            <p>Группировка по кабинетам и школам | Версия 2.0</p>
-        </div>
+<section class="panel print-settings" aria-labelledby="printSettingsHeading">
+  <div class="section-heading"><h2 id="printSettingsHeading">Параметры комплекта</h2><span class="badge">Р / М</span></div>
+  <form id="printSettingsForm">
+    <div class="form-grid">
+      <div class="form-field"><label for="printGrouping">Группировать участников</label><select id="printGrouping"><option value="classroom">По кабинетам</option><option value="school">По школам</option></select></div>
+      <div class="form-field"><label for="printSelection" id="printSelectionLabel">Кабинет</label><select id="printSelection" disabled><option value="">Загрузка кабинетов…</option></select><small class="form-help" id="printSelectionHelp">В списке показаны только группы с участниками.</small></div>
     </div>
-
-    <!-- Модальное окно для массовой печати -->
-    <div id="bulkPrintModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h3>🚀 Массовая печать</h3>
-            <div id="bulkPrintContent">
-                <!-- Контент будет загружен динамически -->
-            </div>
-        </div>
+    <fieldset class="print-format-options"><legend>Форма документа</legend>
+      <label class="print-format-card"><input type="radio" name="printFormat" value="R" checked><span><strong>Форма Р</strong><small>Регистрация участников с колонкой для подписи</small></span></label>
+      <label class="print-format-card"><input type="radio" name="printFormat" value="M"><span><strong>Форма М</strong><small>Мониторинг рассадки с названиями школ и примечаниями</small></span></label>
+    </fieldset>
+    <label class="checkbox-label"><input type="checkbox" id="printParallel" checked>Отдельные листы для каждой параллели</label>
+    <div id="printMessage" class="notice" role="status" aria-live="polite" hidden></div>
+    <div class="print-action-groups">
+      <div class="button-row"><button class="btn btn-primary" id="printPreviewButton" type="submit" disabled>Предпросмотр</button><button class="btn btn-secondary" id="printSelectedButton" type="button" disabled>Печать выбранного</button><button class="btn btn-secondary" id="printExcelButton" type="button" disabled>Excel выбранного</button></div>
+      <div class="button-row"><button class="btn btn-secondary" id="printAllButton" type="button" disabled>Печать всех кабинетов</button><button class="btn btn-quiet" id="printAllExcelButton" type="button" disabled>Excel всех кабинетов</button></div>
     </div>
+    <p class="form-help print-action-help">«Все» создаёт отдельный комплект для каждого кабинета или школы. Для печати разрешите открытие нового окна в браузере.</p>
+  </form>
+</section>
 
-    <script src="/print.js"></script>
-    <script>
-        // Инициализация страницы печати
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('Страница печати загружена');
-
-            // Элементы управления
-            const groupByRadios = document.querySelectorAll('input[name="groupBy"]');
-            const formatRadios = document.querySelectorAll('input[name="format"]');
-            const groupByParallelCheckbox = document.getElementById('groupByParallel');
-            const classroomGroup = document.getElementById('classroomGroup');
-            const schoolGroup = document.getElementById('schoolGroup');
-            const selectionInfo = document.getElementById('selectionInfo');
-            const modeInfo = document.getElementById('modeInfo');
-            const formatInfo = document.getElementById('formatInfo');
-            const parallelInfo = document.getElementById('parallelInfo');
-            const statsInfo = document.getElementById('statsInfo');
-            const selectionType = document.getElementById('selectionType');
-            const studentsCount = document.getElementById('studentsCount');
-            const parallelsCount = document.getElementById('parallelsCount');
-            const currentMode = document.getElementById('currentMode');
-            const bulkPrintBtn = document.getElementById('bulkPrintBtn');
-            const bulkPrintModal = document.getElementById('bulkPrintModal');
-
-            // Обновление информации о выборе
-            function updateSelectionInfo() {
-                const groupBy = document.querySelector('input[name="groupBy"]:checked').value;
-                const format = document.querySelector('input[name="format"]:checked').value;
-                const isGrouped = groupByParallelCheckbox.checked;
-
-                modeInfo.textContent = groupBy === 'classroom' ? 'по кабинетам' : 'по школам';
-                formatInfo.textContent = format === 'R' ? 'Форма Р' : 'Форма М';
-                parallelInfo.textContent = isGrouped ? 'по параллелям' : 'единый список';
-
-                selectionInfo.style.display = 'block';
-                updateCurrentMode();
-            }
-
-            // Обновление текущего режима в статистике
-            function updateCurrentMode() {
-                const groupBy = document.querySelector('input[name="groupBy"]:checked').value;
-                const format = document.querySelector('input[name="format"]:checked').value;
-                const isGrouped = groupByParallelCheckbox.checked;
-
-                currentMode.textContent = `${groupBy === 'classroom' ? 'Кабинеты' : 'Школы'} | ${format === 'R' ? 'Форма Р' : 'Форма М'} | ${isGrouped ? 'По параллелям' : 'Единый список'}`;
-            }
-
-            // Обработчики изменений
-            groupByRadios.forEach(radio => {
-                radio.addEventListener('change', function() {
-                    if (this.value === 'classroom') {
-                        classroomGroup.style.display = 'block';
-                        schoolGroup.style.display = 'none';
-                        selectionType.textContent = 'Кабинет';
-                    } else {
-                        classroomGroup.style.display = 'none';
-                        schoolGroup.style.display = 'block';
-                        selectionType.textContent = 'Школа';
-                        loadSchools(); // Функция загрузки школ
-                    }
-                    updateSelectionInfo();
-                    resetPreview();
-                });
-            });
-
-            formatRadios.forEach(radio => {
-                radio.addEventListener('change', function() {
-                    updateSelectionInfo();
-                    if (window.currentStudents && window.currentStudents.length > 0) {
-                        updatePreview();
-                    }
-                });
-            });
-
-            groupByParallelCheckbox.addEventListener('change', function() {
-                updateSelectionInfo();
-                if (window.currentStudents && window.currentStudents.length > 0) {
-                    updatePreview();
-                }
-            });
-
-            // Обработчик массовой печати
-            bulkPrintBtn.addEventListener('click', function() {
-                showBulkPrintModal();
-            });
-
-            // Закрытие модального окна
-            document.querySelector('#bulkPrintModal .close').addEventListener('click', function() {
-                bulkPrintModal.style.display = 'none';
-            });
-
-            // Функция загрузки школ (заглушка)
-            function loadSchools() {
-                console.log('Загрузка списка школ...');
-                // Здесь будет реализация загрузки школ из API
-            }
-
-            // Функция сброса превью
-            function resetPreview() {
-                const preview = document.getElementById('documentPreview');
-                preview.innerHTML = '<div class="no-preview">Выберите параметры для просмотра документа</div>';
-                statsInfo.style.display = 'none';
-            }
-
-            // Функция показа модального окна массовой печати
-            function showBulkPrintModal() {
-                const groupBy = document.querySelector('input[name="groupBy"]:checked').value;
-                const format = document.querySelector('input[name="format"]:checked').value;
-                const isGrouped = groupByParallelCheckbox.checked;
-
-                const content = `
-                    <div class="bulk-print-options">
-                        <h4>Параметры массовой печати</h4>
-                        <p><strong>Группировка:</strong> ${groupBy === 'classroom' ? 'По кабинетам' : 'По школам'}</p>
-                        <p><strong>Формат:</strong> ${format === 'R' ? 'Форма Р' : 'Форма М'}</p>
-                        <p><strong>Параллели:</strong> ${isGrouped ? 'По классам' : 'Единый список'}</p>
-                        
-                        <div class="form-group" style="margin-top: 20px;">
-                            <label>Выберите опцию:</label>
-                            <select id="bulkSelection" class="form-control">
-                                <option value="all">Все ${groupBy === 'classroom' ? 'кабинеты' : 'школы'}</option>
-                                <option value="selected">Выбранные</option>
-                            </select>
-                        </div>
-
-                        <div class="action-buttons" style="margin-top: 20px;">
-                            <button class="btn btn-success" onclick="startBulkPrint()">
-                                🚀 Начать печать
-                            </button>
-                            <button class="btn btn-secondary" onclick="closeBulkPrintModal()">
-                                Отмена
-                            </button>
-                        </div>
-                    </div>
-                `;
-
-                document.getElementById('bulkPrintContent').innerHTML = content;
-                bulkPrintModal.style.display = 'block';
-            }
-
-            // Глобальные функции для массовой печати
-            window.startBulkPrint = function() {
-                const selection = document.getElementById('bulkSelection').value;
-                console.log(`Запуск массовой печати: ${selection}`);
-                // Реализация массовой печати
-                alert(`Массовая печать запущена для: ${selection}`);
-                bulkPrintModal.style.display = 'none';
-            };
-
-            window.closeBulkPrintModal = function() {
-                bulkPrintModal.style.display = 'none';
-            };
-
-            // Инициализация
-            updateSelectionInfo();
-
-            // Обновление статистики при загрузке данных
-            const originalUpdatePreview = window.updatePreview;
-            window.updatePreview = function() {
-                if (originalUpdatePreview) originalUpdatePreview();
-                
-                if (window.currentStudents && window.currentStudents.length > 0) {
-                    statsInfo.style.display = 'block';
-                    studentsCount.textContent = window.currentStudents.length;
-                    
-                    // Подсчет уникальных параллелей
-                    const parallels = new Set();
-                    window.currentStudents.forEach(student => {
-                        parallels.add(student.паралель);
-                    });
-                    parallelsCount.textContent = parallels.size;
-                    
-                    bulkPrintBtn.disabled = false;
-                } else {
-                    statsInfo.style.display = 'none';
-                    bulkPrintBtn.disabled = true;
-                }
-            };
-        });
-    </script>
-</body>
-</html>
+<section class="print-preview-section" aria-labelledby="printPreviewHeading">
+  <div class="section-heading"><h2 id="printPreviewHeading">Предпросмотр</h2><span class="muted" id="printPreviewStatus" aria-live="polite">Параметры ещё не выбраны</span></div>
+  <div class="print-summary" id="printSummary" hidden aria-label="Статистика документов"></div>
+  <div id="printPreview" class="print-preview"><div class="empty-state"><h3>Подготовьте комплект</h3><p>Выберите кабинет или школу, затем нажмите «Предпросмотр».</p></div></div>
+</section>
+<%- include('partials/footer', {scripts: ['/assets/vendor/xlsx.js', '/assets/print.js']}) %>

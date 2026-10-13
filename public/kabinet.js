@@ -1,170 +1,54 @@
-// Инициализация при загрузке страницы
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('Страница управления кабинетами загружена');
-    renderClassroomsTable();
-    
-    // Обработчик формы добавления кабинета
-    document.getElementById('addClassroomForm').addEventListener('submit', handleAddClassroom);
-});
-
-function renderClassroomsTable() {
-    const table = document.getElementById('classroomsTable');
-    
-    if (!classroomsData || classroomsData.length === 0) {
-        table.innerHTML = '<p class="no-data">Кабинеты не найдены</p>';
-        return;
+'use strict';
+(() => {
+  let classrooms = JSON.parse(document.getElementById('classroomData').textContent);
+  const form = document.getElementById('addClassroomForm');
+  const cancelButton = document.getElementById('cancelRoomEdit');
+  const errorBox = document.getElementById('classroomFormError');
+  const fields = ['номер_кабинета','количество_парт','количество_рядов_парт','этаж'];
+  function resetForm() {
+    form.reset(); form.elements.id.value = '';
+    document.getElementById('classroomFormTitle').textContent = 'Добавить кабинет';
+    form.querySelector('[type=submit]').textContent = 'Добавить кабинет';
+    cancelButton.hidden = true; Exam.message(errorBox,'');
+  }
+  function render() {
+    document.getElementById('roomCount').textContent = classrooms.length;
+    document.getElementById('classroomsTable').innerHTML = classrooms.length ? classrooms.map(room => `<article class="classroom-item"><div><strong>Кабинет №${Exam.escape(room.номер_кабинета)}</strong><div class="classroom-info">${Exam.escape(room.количество_парт)} парт · ${Exam.escape(room.количество_рядов_парт)} рядов · ${Exam.escape(room.этаж)} этаж</div><div class="classroom-info">${Number(room.количество_парт) * 2} мест</div></div><div class="classroom-actions"><button class="btn btn-secondary btn-sm" data-edit="${Number(room.id)}">Изменить</button><button class="btn btn-danger btn-sm" data-delete="${Number(room.id)}">Удалить</button></div></article>`).join('') : '<div class="empty-state"><h3>Пока нет кабинетов</h3><p>Добавьте первый кабинет с помощью формы.</p></div>';
+  }
+  cancelButton.addEventListener('click',resetForm);
+  form.addEventListener('submit',async event => {
+    event.preventDefault(); Exam.message(errorBox,'');
+    const data = Object.fromEntries(fields.map(field => [field,Number(form.elements[field].value)]));
+    if (fields.some(field => !Number.isInteger(data[field]) || data[field] < 1) || data.количество_рядов_парт > data.количество_парт || data.количество_рядов_парт > 6) {
+      Exam.message(errorBox,'Введите положительные целые числа. Допускается до 6 рядов, не больше количества парт.'); return;
     }
-    
-    table.innerHTML = classroomsData.map(classroom => `
-        <div class="classroom-item" id="classroom-${classroom.id}">
-            <div class="classroom-details">
-                <strong>Кабинет №${classroom.номер_кабинета}</strong>
-                <div class="classroom-info">
-                    Парт: ${classroom.количество_парт} | Рядов: ${classroom.количество_рядов_парт} | Этаж: ${classroom.этаж}
-                </div>
-            </div>
-            <div class="classroom-actions">
-                <button class="btn btn-warning btn-sm" onclick="editClassroom(${classroom.id})">Редактировать</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteClassroom(${classroom.id})">Удалить</button>
-            </div>
-        </div>
-    `).join('');
-}
-
-async function handleAddClassroom(event) {
-    event.preventDefault();
-    
-    const form = event.target;
-    const formData = new FormData(form);
-    
-    const data = {
-        номер_кабинета: parseInt(formData.get('номер_кабинета')),
-        количество_парт: parseInt(formData.get('количество_парт')),
-        количество_рядов_парт: parseInt(formData.get('количество_рядов_парт')),
-        этаж: parseInt(formData.get('этаж'))
-    };
-    
-    // Валидация
-    if (data.номер_кабинета < 1 || data.количество_парт < 1 || data.количество_рядов_парт < 1 || data.этаж < 1) {
-        alert('Все поля должны содержать положительные числа');
-        return;
-    }
-    
+    const id = Number(form.elements.id.value);
     try {
-        const submitBtn = form.querySelector('button[type="submit"]');
-        const originalText = submitBtn.textContent;
-        submitBtn.textContent = 'Добавление...';
-        submitBtn.disabled = true;
-        
-        const response = await fetch('/api/classrooms', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(data)
-        });
-        
-        const result = await response.json();
-        
-        submitBtn.textContent = originalText;
-        submitBtn.disabled = false;
-        
-        if (result.success) {
-            alert('Кабинет успешно добавлен!');
-            form.reset();
-            // Обновляем данные и перерисовываем таблицу
-            classroomsData.push(result.classroom);
-            renderClassroomsTable();
-        } else {
-            alert('Ошибка: ' + result.error);
-        }
-    } catch (error) {
-        console.error('Ошибка при добавлении кабинета:', error);
-        alert('Ошибка при добавлении кабинета: ' + error.message);
-        
-        const submitBtn = form.querySelector('button[type="submit"]');
-        submitBtn.textContent = 'Добавить кабинет';
-        submitBtn.disabled = false;
+      const result = await Exam.busy(form.querySelector('[type=submit]'),'Сохраняем…', () => Exam.json(id ? `/api/classrooms/${id}` : '/api/classrooms',id ? 'PUT' : 'POST',data));
+      if (id) classrooms = classrooms.map(room => room.id === id ? result.classroom : room);
+      else classrooms.push(result.classroom);
+      render(); resetForm(); Exam.toast(id ? 'Кабинет обновлён.' : 'Кабинет добавлен.');
+    } catch (error) { Exam.message(errorBox,error.message); }
+  });
+  document.getElementById('classroomsTable').addEventListener('click',async event => {
+    const edit = event.target.closest('[data-edit]');
+    if (edit) {
+      const room = classrooms.find(item => Number(item.id) === Number(edit.dataset.edit));
+      form.elements.id.value = room.id;
+      fields.forEach(field => { form.elements[field].value = room[field]; });
+      document.getElementById('classroomFormTitle').textContent = `Изменить кабинет №${room.номер_кабинета}`;
+      form.querySelector('[type=submit]').textContent = 'Сохранить изменения'; cancelButton.hidden = false;
+      Exam.message(errorBox,''); form.elements['номер_кабинета'].focus(); return;
     }
-}
-
-async function editClassroom(id) {
-    const classroom = classroomsData.find(c => c.id === id);
-    if (!classroom) return;
-    
-    const newNumber = prompt('Новый номер кабинета:', classroom.номер_кабинета);
-    if (newNumber === null) return;
-    
-    const newDesks = prompt('Новое количество парт:', classroom.количество_парт);
-    if (newDesks === null) return;
-    
-    const newRows = prompt('Новое количество рядов:', classroom.количество_рядов_парт);
-    if (newRows === null) return;
-    
-    const newFloor = prompt('Новый этаж:', classroom.этаж);
-    if (newFloor === null) return;
-    
-    // Валидация
-    if (newNumber < 1 || newDesks < 1 || newRows < 1 || newFloor < 1) {
-        alert('Все поля должны содержать положительные числа');
-        return;
-    }
-    
-    const data = {
-        номер_кабинета: parseInt(newNumber),
-        количество_парт: parseInt(newDesks),
-        количество_рядов_парт: parseInt(newRows),
-        этаж: parseInt(newFloor)
-    };
-    
+    const remove = event.target.closest('[data-delete]');
+    if (!remove || !window.confirm('Удалить кабинет? Участники этого кабинета останутся в списке без назначенного места.')) return;
     try {
-        const response = await fetch(`/api/classrooms/${id}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(data)
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            alert('Кабинет успешно обновлен!');
-            // Обновляем данные и перерисовываем таблицу
-            const index = classroomsData.findIndex(c => c.id === id);
-            classroomsData[index] = result.classroom;
-            renderClassroomsTable();
-        } else {
-            alert('Ошибка: ' + result.error);
-        }
-    } catch (error) {
-        console.error('Ошибка при обновлении кабинета:', error);
-        alert('Ошибка при обновлении кабинета: ' + error.message);
-    }
-}
-
-async function deleteClassroom(id) {
-    if (!confirm('Вы уверены, что хотите удалить этот кабинет? Все связанные данные будут потеряны.')) {
-        return;
-    }
-    
-    try {
-        const response = await fetch(`/api/classrooms/${id}`, {
-            method: 'DELETE'
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            alert('Кабинет успешно удален!');
-            // Обновляем данные и перерисовываем таблицу
-            classroomsData = classroomsData.filter(c => c.id !== id);
-            renderClassroomsTable();
-        } else {
-            alert('Ошибка: ' + result.error);
-        }
-    } catch (error) {
-        console.error('Ошибка при удалении кабинета:', error);
-        alert('Ошибка при удалении кабинета: ' + error.message);
-    }
-}
+      const id = Number(remove.dataset.delete);
+      await Exam.busy(remove,'Удаляем…', () => Exam.request(`/api/classrooms/${id}`,{method:'DELETE'}));
+      classrooms = classrooms.filter(room => Number(room.id) !== id); render();
+      if (Number(form.elements.id.value) === id) resetForm();
+      Exam.toast('Кабинет удалён.');
+    } catch (error) { Exam.toast(error.message,'error'); }
+  });
+  render();
+})();

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сопроводительный бланк</title>
+    <style>
+        body {
+            font-family: 'Times New Roman', serif;
+            margin: 0;
+            padding: 20px;
+        }
+        .sheet {
+            max-width: 800px;
+            margin: 0 auto 50px auto;
+            page-break-after: always;
+        }
+        .sheet:last-child {
+            page-break-after: avoid;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+        }
+        .header h1 {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+        }
+        .school-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .school-code {
+            text-align: left;
+        }
+        .school-name {
+            text-align: right;
+        }
+        .subject-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .parallel-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .codes-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+        .codes-column {
+            border: 1px solid #000;
+        }
+        .codes-header {
+            background: #f0f0f0;
+            text-align: center;
+            padding: 5px;
+            font-weight: bold;
+            border-bottom: 1px solid #000;
+        }
+        .codes-list {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+        }
+        .code-item {
+            padding: 8px 5px;
+            border-bottom: 1px solid #ddd;
+            text-align: center;
+            min-height: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .code-item:nth-child(odd) {
+            border-right: 1px solid #ddd;
+        }
+        .code-number {
+    font-weight: bold;
+    margin-right: 10px;
+    min-width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #007bff;
+    color: white;
+    border-radius: 5px;
+    padding: 2px;
+        }
+        .print-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            z-index: 1000;
+        }
+        .print-button:hover {
+            background-color: #0056b3;
+        }
+        @media print {
+            .print-button {
+                display: none;
+            }
+            body {
+                padding: 0;
+            }
+        }
+
+        .print-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            max-width: 800px;
+            margin: 0 auto 24px;
+            font-family: system-ui, sans-serif;
+        }
+        .print-toolbar a { color: #2757a5; text-decoration: none; }
+        .print-toolbar .print-button { position: static; font: inherit; }
+        .print-toolbar a, .print-button { transition: background-color 180ms ease, color 180ms ease; }
+        .print-toolbar a:hover { text-decoration: underline; }
+        .print-toolbar a:focus-visible, .print-button:focus-visible { outline: 3px solid #739cf2; outline-offset: 4px; }
+        .print-button:active { transform: translateY(1px); }
+        .print-page-footer { max-width: 800px; margin: 24px auto 0; color: #64748b; font: 12px system-ui, sans-serif; }
+        @media screen and (max-width: 700px) {
+            body { padding: 12px; }
+            main { overflow-x: auto; }
+            .statement, .registration-list, .sheet { min-width: 660px; }
+            .print-toolbar { align-items: flex-start; }
+        }
+        @media print {
+            .print-toolbar, .print-page-footer { display: none; }
+            table { break-inside: auto; }
+            tr { break-inside: avoid; }
+            thead { display: table-header-group; }
+        }
+    </style>
+</head>
+<body>
+    <header class="print-toolbar">
+        <nav aria-label="Навигация печатных форм"><a href="/forms">← К печатным формам</a></nav>
+    <button class="print-button" type="button" onclick="window.print()">Печать всех бланков</button>
+    </header>
+    <main>
+    
+    <% sheets.forEach((sheet, index) => { %>
+    <section class="sheet">
+        <header class="header">
+            <h1>СОПРОВОДИТЕЛЬНЫЙ БЛАНК</h1>
+            <% if (sheet.page_count > 1) { %><p>Лист <%= sheet.page_number %> из <%= sheet.page_count %></p><% } %>
+        </header>
+
+        <div class="school-info">
+            <div class="school-code">
+                ППО: <strong><%= sheet.school_code %></strong>
+            </div>
+            <div class="school-name">
+                <strong><%= sheet.school_name %></strong>
+            </div>
+        </div>
+
+        <div class="subject-info">
+            <div>
+                Предмет: <strong><%= sheet.subject %></strong>
+            </div>
+            <div>
+                № аудитории: <strong><%= sheet.classroom %></strong>
+            </div>
+        </div>
+
+        <div class="parallel-info">
+            <div>
+                Параллель заданий: <strong><%= sheet.parallel %></strong>
+            </div>
+            <div>
+                Кол-во работ: <strong><%= sheet.student_count %></strong>
+            </div>
+        </div>
+
+        <div class="codes-grid">
+            <div class="codes-column">
+                <div class="codes-header">КОДЫ РАБОТ</div>
+                <div class="codes-list">
+                    <% for(let i = 1; i <= 8; i++) { %>
+                    <div class="code-item">
+                        <span class="code-number"><%= sheet.code_offset + i %></span>
+                    </div>
+                    <div class="code-item">
+                        <span><%= sheet.participant_codes[i-1] || '' %></span>
+                    </div>
+                    <% } %>
+                </div>
+            </div>
+            
+            <div class="codes-column">
+                <div class="codes-header">КОДЫ РАБОТ</div>
+                <div class="codes-list">
+                    <% for(let i = 9; i <= 16; i++) { %>
+                    <div class="code-item">
+                        <span class="code-number"><%= sheet.code_offset + i %></span>
+                    </div>
+                    <div class="code-item">
+                        <span><%= sheet.participant_codes[i-1] || '' %></span>
+                    </div>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </section>
+    <% }); %>
+    </main>
+    <footer class="print-page-footer">Документ подготовлен в системе организации олимпиад</footer>
+</body>
+</html>

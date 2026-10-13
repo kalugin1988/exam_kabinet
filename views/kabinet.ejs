@@ -1,42 +1,10 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Управление кабинетами</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <div class="container">
-        <header class="header">
-            <h1>🏫 Управление кабинетами</h1>
-            <nav>
-                <a href="/" class="btn btn-primary">Вернуться к рассадке</a>
-            </nav>
-        </header>
-
-        <div class="classroom-form">
-            <h3>Добавить новый кабинет</h3>
-            <form id="addClassroomForm">
-                <input type="number" name="номер_кабинета" placeholder="Номер кабинета" required min="1">
-                <input type="number" name="количество_парт" placeholder="Количество парт" required min="1">
-                <input type="number" name="количество_рядов_парт" placeholder="Количество рядов" required min="1">
-                <input type="number" name="этаж" placeholder="Этаж" required min="1">
-                <button type="submit" class="btn btn-success">Добавить кабинет</button>
-            </form>
-        </div>
-
-        <div class="classrooms-list">
-            <h3>Список кабинетов</h3>
-            <div id="classroomsTable">
-                <!-- Список кабинетов будет здесь -->
-            </div>
-        </div>
-    </div>
-
-    <script>
-        const classroomsData = <%- JSON.stringify(classrooms) %>;
-    </script>
-    <script src="kabinet.js"></script>
-</body>
-</html>
+<%- include('partials/header', {pageTitle:'Кабинеты',activePage:'classrooms'}) %>
+<section class="page-heading"><div><p class="eyebrow">Организация пространства</p><h1>Кабинеты</h1><p class="lead">Настройте вместимость и расположение парт для рассадки участников.</p></div><a class="btn btn-secondary" href="/seating">Открыть рассадку →</a></section>
+<div class="two-column"><section class="panel" aria-labelledby="classroomFormTitle"><h2 id="classroomFormTitle">Добавить кабинет</h2><form id="addClassroomForm" class="form-stack">
+  <input type="hidden" name="id"><div class="form-field"><label for="roomNumber">Номер кабинета</label><input id="roomNumber" type="number" name="номер_кабинета" required min="1" step="1" placeholder="Например, 101"></div>
+  <div class="form-grid"><div class="form-field"><label for="roomDesks">Количество парт</label><input id="roomDesks" type="number" name="количество_парт" required min="1" max="500" step="1" placeholder="15"></div><div class="form-field"><label for="roomRows">Количество рядов</label><input id="roomRows" type="number" name="количество_рядов_парт" required min="1" max="6" step="1" placeholder="3"></div></div>
+  <div class="form-field"><label for="roomFloor">Этаж</label><input id="roomFloor" type="number" name="этаж" required min="1" step="1" placeholder="1"></div>
+  <p class="form-help">За каждой партой предусмотрено два места. Количество рядов не должно превышать количество парт.</p><div id="classroomFormError" class="notice notice-error" role="alert" hidden></div><div class="button-row"><button type="submit" class="btn btn-primary">Добавить кабинет</button><button type="button" class="btn btn-quiet" id="cancelRoomEdit" hidden>Отмена</button></div>
+</form></section><section class="panel" aria-labelledby="roomsTitle"><div class="section-heading"><h2 id="roomsTitle">Список кабинетов</h2><span class="badge" id="roomCount"><%= classrooms.length %></span></div><div id="classroomsTable"></div></section></div>
+<script id="classroomData" type="application/json"><%- JSON.stringify(classrooms).replace(/</g, String.fromCharCode(92) + 'u003c') %></script>
+<%- include('partials/footer', {scripts:['/assets/kabinet.js']}) %>
