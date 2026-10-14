@@ -234,7 +234,7 @@ router.get('/api/print/options', async (req, res, next) => {
 });
 
 // Вспомогательные функции
-async function generateClassroomPrintData(classroom, students, oo, format) {
+function generateClassroomPrintData(classroom, students, oo, format) {
   const studentsByParallel = Object.create(null);
   students.forEach(student => {
     if (!studentsByParallel[student.паралель]) {
@@ -269,7 +269,7 @@ async function generateClassroomPrintData(classroom, students, oo, format) {
   };
 }
 
-async function generateSchoolPrintData(schoolData, students, oo, format) {
+function generateSchoolPrintData(schoolData, students, oo, format) {
   const studentsByParallel = Object.create(null);
   students.forEach(student => {
     if (!studentsByParallel[student.паралель]) {

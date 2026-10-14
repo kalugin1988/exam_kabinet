@@ -12,6 +12,7 @@ const { HttpError } = require('../errors');
 const scrypt = promisify(scryptCallback);
 const SESSION_SECONDS = 8 * 60 * 60;
 const JWT_OPTIONS = { algorithm: 'HS256', issuer: 'exam-center', audience: 'exam-admin' };
+const PASSWORD_HASH_PATTERN = /^scrypt:[a-f0-9]{32}:[a-f0-9]{128}$/;
 
 async function hashPassword(password) {
   try {
@@ -23,7 +24,7 @@ async function hashPassword(password) {
 
 async function verifyPassword(password, stored) {
   try {
-    if (typeof password !== 'string' || typeof stored !== 'string') return false;
+    if (typeof password !== 'string' || typeof stored !== 'string' || !PASSWORD_HASH_PATTERN.test(stored)) return false;
     const [method, salt, expectedHex] = stored.split(':');
     if (method !== 'scrypt' || !salt || !/^[a-f0-9]{128}$/.test(expectedHex || '')) return false;
     const actual = await scrypt(password, salt, 64);
@@ -51,13 +52,16 @@ async function initializeAdministrator() {
     if (config.ADMIN_PASSWORD !== undefined && (String(config.ADMIN_PASSWORD).length < 12 || String(config.ADMIN_PASSWORD).length > 1024)) throw new Error('ADMIN_PASSWORD должен содержать от 12 до 1024 символов');
     if (config.JWT_SECRET !== undefined && Buffer.byteLength(config.JWT_SECRET) < 32) throw new Error('JWT_SECRET должен содержать не менее 32 байт');
 
-    let current = await getAdministrator();
-    const login = config.ADMIN_LOGIN?.trim() || current?.login || `admin_${randomBytes(4).toString('hex')}`;
-    const generatedPassword = !current && !config.ADMIN_PASSWORD ? randomBytes(24).toString('base64url') : null;
+    const current = await getAdministrator();
+    const savedLogin = typeof current?.login === 'string' && current.login.trim() && current.login.trim().length <= 128 ? current.login.trim() : null;
+    const savedSecret = typeof current?.jwt_secret === 'string' && Buffer.byteLength(current.jwt_secret) >= 32 ? current.jwt_secret : null;
+    const needsPassword = !current || !PASSWORD_HASH_PATTERN.test(current.password_hash);
+    const login = config.ADMIN_LOGIN?.trim() || savedLogin || `admin_${randomBytes(4).toString('hex')}`;
+    const generatedPassword = needsPassword && !config.ADMIN_PASSWORD ? randomBytes(24).toString('base64url') : null;
     const password = config.ADMIN_PASSWORD || generatedPassword;
     const passwordChanged = password ? !current || !await verifyPassword(password, current.password_hash) : false;
     const passwordHash = passwordChanged ? await hashPassword(password) : current.password_hash;
-    const secret = config.JWT_SECRET || current?.jwt_secret || randomBytes(48).toString('base64url');
+    const secret = config.JWT_SECRET || savedSecret || randomBytes(48).toString('base64url');
     const changed = !current || login !== current.login || passwordChanged || secret !== current.jwt_secret;
     if (generatedPassword) {
       const defaultPath = path.join(DATA_DIR, 'initial-admin.json');

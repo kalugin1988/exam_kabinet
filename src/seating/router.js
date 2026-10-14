@@ -641,6 +641,7 @@ app.put('/api/classrooms/:id/layout', async (req, res, next) => {
 app.get('/api/classrooms/:id/layout', async (req, res, next) => {
   try {
     const { id } = req.params;
+    if (!(await getClassroomById(id))) throw new HttpError(404, 'Кабинет не найден');
     console.log(`⚙️ Загрузка конфигурации кабинета ID=${id}`);
 
     const row_mapping = await getClassroomLayout(id);
@@ -654,6 +655,7 @@ app.get('/api/classrooms/:id/layout', async (req, res, next) => {
 app.delete('/api/classrooms/:id/layout', async (req, res, next) => {
   try {
     const { id } = req.params;
+    if (!(await getClassroomById(id))) throw new HttpError(404, 'Кабинет не найден');
     console.log(`🗑️ Удаление конфигурации кабинета ID=${id}`);
 
     await deleteClassroomLayout(id);
@@ -767,12 +769,8 @@ app.get('/api/health', async (req, res, next) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    res.status(503).json({
-      success: false,
-      status: 'ERROR',
-      database: 'disconnected',
-      error: error.message
-    });
+    error.status = 503;
+    next(error);
   }
 });
 

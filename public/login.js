@@ -5,7 +5,12 @@
   const password = document.getElementById('password');
   const errorBox = document.getElementById('loginError');
   const query = new URLSearchParams(window.location.search);
-  if (query.get('reason') === 'expired') Exam.message(document.getElementById('loginNotice'),'Сессия истекла. Войдите снова, чтобы продолжить работу.','info');
+  const sessionNotices = {
+    expired: 'Сессия истекла или завершена. Войдите снова, чтобы продолжить работу.',
+    invalid: 'Токен авторизации недействителен. Войдите снова, чтобы продолжить работу.',
+    required: 'Войдите в систему, чтобы продолжить работу.',
+  };
+  if (sessionNotices[query.get('reason')]) Exam.message(document.getElementById('loginNotice'),sessionNotices[query.get('reason')],'info');
   document.getElementById('togglePassword').addEventListener('click', event => {
     const visible = password.type === 'password';
     password.type = visible ? 'text' : 'password';

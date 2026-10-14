@@ -32,7 +32,8 @@ async function requireAuthentication(req, res, next) {
       res.clearCookie(COOKIE_NAME, cookieOptions);
       if (!wantsJson(req)) {
         const returnTo = encodeURIComponent(req.originalUrl);
-        return res.redirect(`/login?reason=${error.code === 'AUTH_REQUIRED' ? 'required' : 'expired'}&returnTo=${returnTo}`);
+        const reason = error.code === 'AUTH_REQUIRED' ? 'required' : error.code === 'INVALID_TOKEN' ? 'invalid' : 'expired';
+        return res.redirect(`/login?reason=${reason}&returnTo=${returnTo}`);
       }
     }
     next(error);

@@ -210,6 +210,14 @@ test('npm start serves one authenticated workflow: Excel import, seating, forms 
     await app.json('/api/not-a-route', { token: session.token }, 404);
     await app.json('/api/students', { token: 'not-a-jwt' }, 401);
     await app.json('/api/students', { cookie: 'exam_session=%zz' }, 401);
+    for (const options of [{}, { token: 'not-a-jwt' }]) {
+      const missingOrInvalidMe = await app.request('/api/auth/me', options);
+      assert.equal(missingOrInvalidMe.status, 401, 'A mounted GET API returns 401 even without Accept: application/json');
+      assert.match(missingOrInvalidMe.headers.get('content-type') || '', /application\/json/);
+    }
+    const invalidPage = await app.request('/seating', { token: 'not-a-jwt' });
+    assert.equal(invalidPage.status, 302);
+    assert.match(invalidPage.headers.get('location'), /reason=invalid/);
     const claims = jwt.decode(session.token);
     const expired = jwt.sign({ ...claims, exp: Math.floor(Date.now() / 1000) - 1 }, app.configuration.JWT_SECRET);
     assert.equal((await app.json('/api/students', { token: expired }, 401)).code, 'SESSION_EXPIRED');
@@ -221,6 +229,29 @@ test('npm start serves one authenticated workflow: Excel import, seating, forms 
     await app.json('/api/classrooms', {
       method: 'POST', token: session.token, headers: { 'sec-fetch-site': 'cross-site' }, json: {},
     }, 403);
+  });
+
+  await t.test('HTTP errors use correct statuses and keep database details private', async () => {
+    const malformed = await app.request('/api/auth/login', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"password":',
+    });
+    assert.equal(malformed.status, 400);
+    assert.equal((await malformed.json()).error, 'Некорректный JSON в запросе');
+    for (const method of ['GET', 'DELETE']) {
+      await app.json('/api/classrooms/999999999/layout', { token: session.token, method }, 404);
+    }
+    const database = new DatabaseSync(path.join(app.directory, 'data', 'exam.sqlite'));
+    try {
+      database.exec('ALTER TABLE "Ученики" RENAME TO "unavailable_roster"');
+      const failure = await app.json('/api/students', { token: session.token }, 500);
+      assert.equal(failure.success, false);
+      assert.equal(failure.error, 'Внутренняя ошибка сервера. Повторите попытку.');
+      assert.doesNotMatch(JSON.stringify(failure), /no such table|SELECT|unavailable_roster|Ученики/);
+    } finally {
+      database.exec('ALTER TABLE "unavailable_roster" RENAME TO "Ученики"');
+      database.close();
+    }
+    assert.equal((await app.json('/api/students', { token: session.token })).students.length, 0);
   });
 
   await t.test('all import formats are available; invalid replacements preserve data', async () => {
@@ -564,4 +595,55 @@ test('administrator bootstrap preserves an existing credential file when initial
   assert.equal((await app.json('/api/auth/me', { cookie })).user.login, newCredentials.login);
   assert.ok(await fs.readFile(oldPath, 'utf8') === oldContent, 'restart still preserves the previous credential file');
   assert.equal((await fs.readdir(dataDirectory)).filter(name => /^initial-admin-[0-9a-f-]+\.json$/i.test(name)).length, 1);
+});
+
+test('startup regenerates missing administrator fields in an existing database', { timeout: 60000 }, async t => {
+  const app = await fixture({ generated: true });
+  t.after(async () => { await app.stop(); app.assertNoSecretLogging(); });
+  await app.start();
+  const directory = path.join(app.directory, 'data');
+  const originalFile = await fs.readFile(path.join(directory, 'initial-admin.json'), 'utf8');
+  const original = JSON.parse(originalFile);
+  app.privateValues.add(original.password);
+  await app.stop();
+  const database = new DatabaseSync(path.join(directory, 'exam.sqlite'));
+  database.exec("UPDATE auth_admin SET login='', password_hash='', jwt_secret='' WHERE id=1");
+  database.close();
+  await app.start();
+  assert.ok(await fs.readFile(path.join(directory, 'initial-admin.json'), 'utf8') === originalFile,
+    'The existing credential file is preserved');
+  const files = (await fs.readdir(directory)).filter(name => /^initial-admin-[0-9a-f-]+\.json$/i.test(name));
+  assert.equal(files.length, 1);
+  const regenerated = JSON.parse(await fs.readFile(path.join(directory, files[0]), 'utf8'));
+  app.privateValues.add(regenerated.password);
+  assert.ok(regenerated.login !== original.login, 'A missing login is generated again');
+  assert.ok(regenerated.password !== original.password, 'A missing password is generated again');
+  assert.equal((await app.request('/api/auth/login', { method: 'POST', json: regenerated })).status, 200);
+  assert.equal((await app.request('/api/auth/login', { method: 'POST', json: original })).status, 401);
+  const stored = new DatabaseSync(path.join(directory, 'exam.sqlite'));
+  try {
+    const admin = stored.prepare('SELECT password_hash,jwt_secret FROM auth_admin WHERE id=1').get();
+    app.privateValues.add(admin.jwt_secret);
+    assert.match(admin.password_hash, /^scrypt:[a-f0-9]{32}:[a-f0-9]{128}$/);
+    assert.ok(Buffer.byteLength(admin.jwt_secret) >= 32);
+  } finally { stored.close(); }
+});
+
+test('npm start reports configuration and storage failures without an uncaught stack', { timeout: 60000 }, async t => {
+  const invalidConfig = await fixture();
+  t.after(async () => { await invalidConfig.stop(); invalidConfig.assertNoSecretLogging(); });
+  invalidConfig.configuration.PORT = 'invalid';
+  await assert.rejects(invalidConfig.start(), error => {
+    assert.match(error.message, /Не удалось запустить приложение: PORT/);
+    assert.doesNotMatch(error.message, /at Object\.<anonymous>|at Module\._compile/);
+    return true;
+  });
+  const unavailable = await fixture();
+  t.after(async () => { await unavailable.stop(); unavailable.assertNoSecretLogging(); });
+  await fs.mkdir(path.join(unavailable.directory, 'data', 'exam.sqlite'), { recursive: true });
+  await assert.rejects(unavailable.start(), error => {
+    assert.match(error.message, /Не удалось запустить приложение:/);
+    assert.doesNotMatch(error.message, /at Object\.<anonymous>|at Module\._compile/);
+    return true;
+  });
 });

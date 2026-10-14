@@ -31,9 +31,10 @@
           if (!redirecting) {
             redirecting = true;
             const next = window.location.pathname + window.location.search;
-            window.location.replace(`/login?reason=expired&next=${encodeURIComponent(next)}`);
+            const reason = result.code === 'INVALID_TOKEN' ? 'invalid' : result.code === 'AUTH_REQUIRED' ? 'required' : 'expired';
+            window.location.replace(`/login?reason=${reason}&next=${encodeURIComponent(next)}`);
           }
-          throw new Error('Сессия истекла. Войдите в систему повторно.');
+          throw new Error(result.error || 'Войдите в систему повторно.');
         }
         if (!response.ok || result.success === false) {
           const message = result.error || result.message || (response.status === 403 ? 'Недостаточно прав для выполнения действия.' : 'Не удалось выполнить запрос.');

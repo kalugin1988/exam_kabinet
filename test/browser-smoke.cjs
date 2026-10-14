@@ -18,8 +18,11 @@ const run = path.join(source, 'data', 'test-runs', `browser-${randomUUID()}`);
 const application = path.join(run, 'app');
 const errors = [];
 const failures = [];
+const expectedHttpErrors = new Set();
 let server;
 let context;
+let phase = 'initialization';
+let browserPage;
 
 async function availablePort() {
   const socket = net.createServer();
@@ -36,6 +39,8 @@ async function inspect(page, label, screenshot = true) {
   assert.equal(await page.locator('body > header').count(), 1, `${label}: header`);
   assert.equal(await page.locator('body > main').count(), 1, `${label}: main`);
   assert.equal(await page.locator('body > footer').count(), 1, `${label}: footer`);
+  assert.ok(await page.locator('nav').count(), `${label}: navigation landmark`);
+  assert.ok(await page.locator('main section').count(), `${label}: semantic sections`);
   if (screenshot) await page.screenshot({ path: path.join(run, `${label}.png`), fullPage: true });
 }
 
@@ -88,12 +93,15 @@ async function runChecks() {
       if (reason !== 'net::ERR_ABORTED') failures.push(`${request.method()} ${new URL(request.url()).pathname}: ${reason}`);
     });
     page.on('response', response => {
-      if (response.status() >= 400 && !(new URL(response.url()).pathname === '/api/auth/login' && response.status() === 401)) {
+      const responsePath = new URL(response.url()).pathname;
+      if (response.status() >= 400 && !(responsePath === '/api/auth/login' && response.status() === 401) &&
+        !expectedHttpErrors.has(`${response.status()} ${responsePath}`)) {
         failures.push(`${response.status()} ${new URL(response.url()).pathname}`);
       }
     });
   });
   const page = await context.newPage();
+  browserPage = page;
   page.setDefaultTimeout(10000);
   await page.goto(`${origin}/login`);
   await inspect(page, 'desktop-login');
@@ -208,7 +216,7 @@ async function runChecks() {
   await page.locator('nav a[href="/oo"]').click();
   await inspect(page, 'desktop-institutions');
 
-  for (const width of [390, 320]) {
+  for (const width of [390, 320, 768, 1024]) {
     await page.setViewportSize({ width, height: 844 });
     for (const [route, label] of [['/', 'dashboard'], ['/import', 'import'], ['/kabinet', 'classrooms'], ['/seating', 'seating'], ['/forms', 'forms'], ['/print', 'print'], ['/oo', 'institutions']]) {
       await page.goto(`${origin}${route}`);
@@ -254,9 +262,37 @@ async function runChecks() {
     await login(page, configuration);
     assert.equal(new URL(page.url()).origin, origin, 'External next parameter remains on this application');
   }
+  await page.setViewportSize({ width: 390, height: 844 });
+  phase = 'invalid token on page navigation';
+  await context.addCookies([{ name: 'exam_session', value: 'not-a-jwt', url: origin, httpOnly: true, sameSite: 'Strict' }]);
+  await page.goto(`${origin}/kabinet`);
+  await page.waitForURL(url => url.pathname === '/login' && url.searchParams.get('reason') === 'invalid');
+  assert.match(await page.locator('#loginNotice').innerText(), /Токен авторизации недействителен/);
+  assert.doesNotMatch(await page.locator('#loginNotice').innerText(), /Сессия истекла/);
+  await login(page, configuration, '/kabinet');
+  expectedHttpErrors.add('401 /api/auth/me');
+  phase = 'invalid token in a mounted GET API';
+  await context.addCookies([{ name: 'exam_session', value: 'not-a-jwt', url: origin, httpOnly: true, sameSite: 'Strict' }]);
+  await Promise.all([
+    page.waitForURL(url => url.pathname === '/login' && url.searchParams.get('reason') === 'invalid'),
+    page.evaluate(() => Exam.request('/api/auth/me').catch(() => {})),
+  ]);
+  assert.match(await page.locator('#loginNotice').innerText(), /Токен авторизации недействителен/);
+  await login(page, configuration, '/kabinet');
+  await context.clearCookies();
+  phase = 'missing token in a mounted GET API';
+  await Promise.all([
+    page.waitForURL(url => url.pathname === '/login' && url.searchParams.get('reason') === 'required'),
+    page.evaluate(() => Exam.request('/api/auth/me').catch(() => {})),
+  ]);
+  assert.match(await page.locator('#loginNotice').innerText(), /Войдите в систему/);
+  assert.doesNotMatch(await page.locator('#loginNotice').innerText(), /Токен авторизации недействителен|Сессия истекла/);
+  expectedHttpErrors.delete('401 /api/auth/me');
+  await login(page, configuration, '/kabinet');
   const expired = jwt.sign({ role: 'admin', version: 1 }, configuration.JWT_SECRET, {
     algorithm: 'HS256', issuer: 'exam-center', audience: 'exam-admin', subject: '1', jwtid: randomUUID(), expiresIn: -1,
   });
+  phase = 'expired session';
   await context.addCookies([{ name: 'exam_session', value: expired, url: origin, httpOnly: true, sameSite: 'Strict' }]);
   await page.goto(`${origin}/kabinet`);
   await page.waitForURL(url => url.pathname === '/login' && url.searchParams.get('reason') === 'expired');
@@ -269,11 +305,12 @@ async function runChecks() {
   assert.equal(new URL(page.url()).pathname, '/login', 'Logout protects subsequent visits');
   assert.deepEqual(errors, [], 'No browser JavaScript errors');
   assert.deepEqual(failures, [], 'No unexpected HTTP errors or failed requests');
-  console.log(`Browser smoke passed: desktop 1280, mobile 390/320, login, navigation, room CRUD, XLSX import, seating, five document types (including mobile), forms R/M, selected/all printing and XLSX, logout and expiry.\nArtifacts: ${run}`);
+  console.log(`Browser smoke passed: desktop 1280, tablet 768/1024, mobile 390/320, semantic markup, login, navigation, room CRUD, XLSX import, seating, five document types, forms R/M, selected/all printing and XLSX, logout, invalid/missing token notices and expiry.\nArtifacts: ${run}`);
 }
 
 runChecks().catch(error => {
   console.error(error.message);
+  console.error('Browser checkpoint:', phase, browserPage?.url());
   if (errors.length) console.error('Browser errors:', errors);
   if (failures.length) console.error('HTTP/request errors:', failures);
   console.error(`Retained artifacts: ${run}`);

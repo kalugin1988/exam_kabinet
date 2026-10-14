@@ -126,22 +126,27 @@ async function query(sql, params = []) {
 }
 
 async function transaction(callback) {
-  if (typeof callback !== 'function') throw new TypeError('Transaction callback is required');
-  if (transactionContext.getStore()) {
-    // Nested domain operations share the outer atomic transaction.
-    return await callback({ query });
-  }
-  return await enqueue(async () => {
-    database.exec('BEGIN IMMEDIATE');
-    try {
-      const result = await transactionContext.run(true, () => callback({ query }));
-      database.exec('COMMIT');
-      return result;
-    } catch (error) {
-      database.exec('ROLLBACK');
-      throw error;
+  try {
+    if (typeof callback !== 'function') throw new TypeError('Transaction callback is required');
+    if (transactionContext.getStore()) {
+      // Nested domain operations share the outer atomic transaction.
+      return await callback({ query });
     }
-  });
+    return await enqueue(async () => {
+      database.exec('BEGIN IMMEDIATE');
+      try {
+        const result = await transactionContext.run(true, () => callback({ query }));
+        database.exec('COMMIT');
+        return result;
+      } catch (error) {
+        database.exec('ROLLBACK');
+        throw error;
+      }
+    });
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'transaction';
+    throw error;
+  }
 }
 
 async function tableExists(tableName) {

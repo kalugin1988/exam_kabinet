@@ -1,12 +1,14 @@
 'use strict';
 
-const { port } = require('./src/config');
-const { initializeDatabase, initializeExistingClassroomTables, pool } = require('./bd');
-const { initializeAdministrator } = require('./src/auth/service');
-const { createApp } = require('./src/app');
-
 async function start() {
+  let pool;
   try {
+    const { port } = require('./src/config');
+    const domain = require('./bd');
+    const { initializeDatabase, initializeExistingClassroomTables } = domain;
+    pool = domain.pool;
+    const { initializeAdministrator } = require('./src/auth/service');
+    const { createApp } = require('./src/app');
     await initializeDatabase();
     await initializeExistingClassroomTables();
     await initializeAdministrator();
@@ -36,7 +38,7 @@ async function start() {
     return server;
   } catch (error) {
     console.error('Не удалось запустить приложение:', error.message);
-    try { await pool.end(); } catch (closeError) { console.error('Ошибка закрытия базы:', closeError.message); }
+    try { if (pool) await pool.end(); } catch (closeError) { console.error('Ошибка закрытия базы:', closeError.message); }
     process.exitCode = 1;
   }
 }

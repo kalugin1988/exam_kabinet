@@ -24,25 +24,35 @@ const classroomTableName = (classroomNumber) => {
 };
 
 const checkColumnExists = async (tableName, columnName) => {
-  const columns = await getTableColumns(tableName);
-  return columns.some(column => column.name === columnName);
+  try {
+    const columns = await getTableColumns(tableName);
+    return columns.some(column => column.name === columnName);
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'checkColumnExists';
+    throw error;
+  }
 };
 
 const addColumnIfNotExists = async (tableName, columnName, dataType, defaultValue = '') => {
-  const exists = await checkColumnExists(tableName, columnName);
-  if (!exists) {
-    // SQLite allows adding constant defaults, but not CURRENT_TIMESTAMP to
-    // populated tables. Add and backfill that optional legacy timestamp instead.
-    const timestampDefault = /DEFAULT CURRENT_TIMESTAMP/i.test(defaultValue);
-    const supportedDefault = timestampDefault ? '' : defaultValue;
-    await pool.query(`ALTER TABLE ${quoteIdentifier(tableName)} ADD COLUMN ${quoteIdentifier(columnName)} ${dataType} ${supportedDefault}`);
-    if (timestampDefault) {
-      await pool.query(`UPDATE ${quoteIdentifier(tableName)} SET ${quoteIdentifier(columnName)} = CURRENT_TIMESTAMP WHERE ${quoteIdentifier(columnName)} IS NULL`);
+  try {
+    const exists = await checkColumnExists(tableName, columnName);
+    if (!exists) {
+      // SQLite allows adding constant defaults, but not CURRENT_TIMESTAMP to
+      // populated tables. Add and backfill that optional legacy timestamp instead.
+      const timestampDefault = /DEFAULT CURRENT_TIMESTAMP/i.test(defaultValue);
+      const supportedDefault = timestampDefault ? '' : defaultValue;
+      await pool.query(`ALTER TABLE ${quoteIdentifier(tableName)} ADD COLUMN ${quoteIdentifier(columnName)} ${dataType} ${supportedDefault}`);
+      if (timestampDefault) {
+        await pool.query(`UPDATE ${quoteIdentifier(tableName)} SET ${quoteIdentifier(columnName)} = CURRENT_TIMESTAMP WHERE ${quoteIdentifier(columnName)} IS NULL`);
+      }
+      console.log(`✅ Добавлено поле ${columnName} в таблицу ${tableName}`);
+      return true;
     }
-    console.log(`✅ Добавлено поле ${columnName} в таблицу ${tableName}`);
-    return true;
+    return false;
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'addColumnIfNotExists';
+    throw error;
   }
-  return false;
 };
 
 // ========== ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ ==========
@@ -462,269 +472,434 @@ const checkPlacementRules = (student, classroomNumber, placeNumber, classmates) 
 
 // Кабинеты
 const getAllClassrooms = async () => {
-  const result = await pool.query('SELECT * FROM Кабинеты ORDER BY номер_кабинета');
-  return result.rows;
+  try {
+    const result = await pool.query('SELECT * FROM Кабинеты ORDER BY номер_кабинета');
+    return result.rows;
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'getAllClassrooms';
+    throw error;
+  }
 };
 
 const getClassroomById = async (id) => {
-  const result = await pool.query('SELECT * FROM Кабинеты WHERE id = $1', [id]);
-  return result.rows[0];
+  try {
+    const result = await pool.query('SELECT * FROM Кабинеты WHERE id = $1', [id]);
+    return result.rows[0];
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'getClassroomById';
+    throw error;
+  }
 };
 
 const createClassroom = async (номер_кабинета, количество_парт, количество_рядов_парт, этаж) => {
-  const result = await pool.query(
-    'INSERT INTO Кабинеты (номер_кабинета, количество_парт, количество_рядов_парт, этаж) VALUES ($1, $2, $3, $4) RETURNING *',
-    [номер_кабинета, количество_парт, количество_рядов_парт, этаж]
-  );
-  return result.rows[0];
+  try {
+    const result = await pool.query(
+      'INSERT INTO Кабинеты (номер_кабинета, количество_парт, количество_рядов_парт, этаж) VALUES ($1, $2, $3, $4) RETURNING *',
+      [номер_кабинета, количество_парт, количество_рядов_парт, этаж]
+    );
+    return result.rows[0];
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'createClassroom';
+    throw error;
+  }
 };
 
 const updateClassroom = async (id, номер_кабинета, количество_парт, количество_рядов_парт, этаж) => {
-  const result = await pool.query(
-    'UPDATE Кабинеты SET номер_кабинета = $1, количество_парт = $2, количество_рядов_парт = $3, этаж = $4 WHERE id = $5 RETURNING *',
-    [номер_кабинета, количество_парт, количество_рядов_парт, этаж, id]
-  );
-  return result.rows[0];
+  try {
+    const result = await pool.query(
+      'UPDATE Кабинеты SET номер_кабинета = $1, количество_парт = $2, количество_рядов_парт = $3, этаж = $4 WHERE id = $5 RETURNING *',
+      [номер_кабинета, количество_парт, количество_рядов_парт, этаж, id]
+    );
+    return result.rows[0];
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'updateClassroom';
+    throw error;
+  }
 };
 
 const deleteClassroom = async (id) => {
-  const result = await pool.query('DELETE FROM Кабинеты WHERE id = $1 RETURNING *', [id]);
-  return result.rows[0];
+  try {
+    const result = await pool.query('DELETE FROM Кабинеты WHERE id = $1 RETURNING *', [id]);
+    return result.rows[0];
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'deleteClassroom';
+    throw error;
+  }
 };
 
 // Ученики
 const getAllStudents = async () => {
-  const result = await pool.query('SELECT * FROM Ученики ORDER BY паралель, фимилия');
-  return result.rows;
+  try {
+    const result = await pool.query('SELECT * FROM Ученики ORDER BY паралель, фимилия');
+    return result.rows;
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'getAllStudents';
+    throw error;
+  }
 };
 
 const getUnplacedStudents = async () => {
-  const result = await pool.query(
-    'SELECT * FROM Ученики WHERE номер_кабинета IS NULL OR номер_места IS NULL ORDER BY паралель, фимилия'
-  );
-  return result.rows;
+  try {
+    const result = await pool.query(
+      'SELECT * FROM Ученики WHERE номер_кабинета IS NULL OR номер_места IS NULL ORDER BY паралель, фимилия'
+    );
+    return result.rows;
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'getUnplacedStudents';
+    throw error;
+  }
 };
 
 const getStudentById = async (studentId) => {
-  const result = await pool.query('SELECT * FROM Ученики WHERE id = $1', [studentId]);
-  return result.rows[0];
+  try {
+    const result = await pool.query('SELECT * FROM Ученики WHERE id = $1', [studentId]);
+    return result.rows[0];
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'getStudentById';
+    throw error;
+  }
 };
 
 const getStudentsByClassroom = async (classroomNumber) => {
-  const result = await pool.query(
-    'SELECT * FROM Ученики WHERE номер_кабинета = $1 AND номер_места IS NOT NULL ORDER BY паралель, фимилия',
-    [classroomNumber]
-  );
-  return result.rows;
+  try {
+    const result = await pool.query(
+      'SELECT * FROM Ученики WHERE номер_кабинета = $1 AND номер_места IS NOT NULL ORDER BY паралель, фимилия',
+      [classroomNumber]
+    );
+    return result.rows;
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'getStudentsByClassroom';
+    throw error;
+  }
 };
 
 const updateStudentPlace = async (studentId, classroomNumber, placeNumber) => {
-  await pool.query(
-    'UPDATE Ученики SET номер_кабинета = $1, номер_места = $2, дата_последнего_изменения = CURRENT_TIMESTAMP WHERE id = $3',
-    [classroomNumber, placeNumber, studentId]
-  );
+  try {
+    await pool.query(
+      'UPDATE Ученики SET номер_кабинета = $1, номер_места = $2, дата_последнего_изменения = CURRENT_TIMESTAMP WHERE id = $3',
+      [classroomNumber, placeNumber, studentId]
+    );
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'updateStudentPlace';
+    throw error;
+  }
 };
 
 const clearAllSeating = async () => {
-  await pool.query('UPDATE Ученики SET номер_кабинета = NULL, номер_места = NULL');
+  try {
+    await pool.query('UPDATE Ученики SET номер_кабинета = NULL, номер_места = NULL');
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'clearAllSeating';
+    throw error;
+  }
 };
 
 const clearAllStudents = async () => {
-  await pool.query('DELETE FROM Ученики');
+  try {
+    await pool.query('DELETE FROM Ученики');
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'clearAllStudents';
+    throw error;
+  }
 };
 
 const getStudentsWithPlaces = async () => {
-  const result = await pool.query(`
-    SELECT
-      Ученики.*,
-      Кабинеты.этаж
-    FROM Ученики
-    LEFT JOIN Кабинеты ON Ученики.номер_кабинета = Кабинеты.номер_кабинета
-    WHERE Ученики.номер_кабинета IS NOT NULL
-    AND Ученики.номер_места IS NOT NULL
-    ORDER BY Ученики.паралель, Ученики.фимилия
-  `);
-  return result.rows;
+  try {
+    const result = await pool.query(`
+      SELECT
+        Ученики.*,
+        Кабинеты.этаж
+      FROM Ученики
+      LEFT JOIN Кабинеты ON Ученики.номер_кабинета = Кабинеты.номер_кабинета
+      WHERE Ученики.номер_кабинета IS NOT NULL
+      AND Ученики.номер_места IS NOT NULL
+      ORDER BY Ученики.паралель, Ученики.фимилия
+    `);
+    return result.rows;
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'getStudentsWithPlaces';
+    throw error;
+  }
 };
 
 const insertStudent = async (studentData) => {
-  const {
-    id, фимилия, имя, отчество, паралель, предмет,
-    номер_кабинета, номер_места, school_code, school_name,
-    school_number_oo, school_name_oo, participant_code
-  } = studentData;
+  try {
+    const {
+      id, фимилия, имя, отчество, паралель, предмет,
+      номер_кабинета, номер_места, school_code, school_name,
+      school_number_oo, school_name_oo, participant_code
+    } = studentData;
 
-  const query = id ?
-    `INSERT INTO Ученики (
-      id, фимилия, имя, отчество, паралель, предмет, номер_кабинета, номер_места,
-      school_code, school_name, school_number_oo, school_name_oo, participant_code
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)` :
-    `INSERT INTO Ученики (
-      фимилия, имя, отчество, паралель, предмет, номер_кабинета, номер_места,
-      school_code, school_name, school_number_oo, school_name_oo, participant_code
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`;
+    const query = id ?
+      `INSERT INTO Ученики (
+        id, фимилия, имя, отчество, паралель, предмет, номер_кабинета, номер_места,
+        school_code, school_name, school_number_oo, school_name_oo, participant_code
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)` :
+      `INSERT INTO Ученики (
+        фимилия, имя, отчество, паралель, предмет, номер_кабинета, номер_места,
+        school_code, school_name, school_number_oo, school_name_oo, participant_code
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`;
 
-  const params = id ?
-    [id, фимилия, имя, отчество || '', паралель, предмет, номер_кабинета, номер_места,
-     school_code || '', school_name || '', school_number_oo || '', school_name_oo || '', participant_code || ''] :
-    [фимилия, имя, отчество || '', паралель, предмет, номер_кабинета, номер_места,
-     school_code || '', school_name || '', school_number_oo || '', school_name_oo || '', participant_code || ''];
+    const params = id ?
+      [id, фимилия, имя, отчество || '', паралель, предмет, номер_кабинета, номер_места,
+       school_code || '', school_name || '', school_number_oo || '', school_name_oo || '', participant_code || ''] :
+      [фимилия, имя, отчество || '', паралель, предмет, номер_кабинета, номер_места,
+       school_code || '', school_name || '', school_number_oo || '', school_name_oo || '', participant_code || ''];
 
-  await pool.query(query, params);
+    await pool.query(query, params);
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'insertStudent';
+    throw error;
+  }
 };
 
 // Места в кабинетах
 const getClassroomPlaces = async (classroomNumber) => {
-  const tableName = classroomTableName(classroomNumber);
-  const result = await pool.query(`SELECT номер_места, заблокировано FROM ${quoteIdentifier(tableName)} ORDER BY номер_парты, буква_места`);
-  return result.rows;
+  try {
+    const tableName = classroomTableName(classroomNumber);
+    const result = await pool.query(`SELECT номер_места, заблокировано FROM ${quoteIdentifier(tableName)} ORDER BY номер_парты, буква_места`);
+    return result.rows;
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'getClassroomPlaces';
+    throw error;
+  }
 };
 
 const getOccupiedPlaces = async (classroomNumber) => {
-  const result = await pool.query(
-    'SELECT номер_места FROM Ученики WHERE номер_кабинета = $1 AND номер_места IS NOT NULL',
-    [classroomNumber]
-  );
-  return result.rows.map(row => row.номер_места);
+  try {
+    const result = await pool.query(
+      'SELECT номер_места FROM Ученики WHERE номер_кабинета = $1 AND номер_места IS NOT NULL',
+      [classroomNumber]
+    );
+    return result.rows.map(row => row.номер_места);
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'getOccupiedPlaces';
+    throw error;
+  }
 };
 
 const updatePlaceBlockStatus = async (classroomNumber, placeNumber, blocked) => {
-  const tableName = classroomTableName(classroomNumber);
-  await pool.query(
-    `UPDATE ${quoteIdentifier(tableName)} SET заблокировано = $1 WHERE номер_места = $2`,
-    [blocked, placeNumber]
-  );
+  try {
+    const tableName = classroomTableName(classroomNumber);
+    await pool.query(
+      `UPDATE ${quoteIdentifier(tableName)} SET заблокировано = $1 WHERE номер_места = $2`,
+      [blocked, placeNumber]
+    );
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'updatePlaceBlockStatus';
+    throw error;
+  }
 };
 
 const getBlockedPlaces = async (classroomNumber) => {
-  const tableName = classroomTableName(classroomNumber);
-  const result = await pool.query(
-    `SELECT номер_места FROM ${quoteIdentifier(tableName)} WHERE заблокировано = true ORDER BY номер_парты, буква_места`
-  );
-  return result.rows.map(row => row.номер_места);
+  try {
+    const tableName = classroomTableName(classroomNumber);
+    const result = await pool.query(
+      `SELECT номер_места FROM ${quoteIdentifier(tableName)} WHERE заблокировано = true ORDER BY номер_парты, буква_места`
+    );
+    return result.rows.map(row => row.номер_места);
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'getBlockedPlaces';
+    throw error;
+  }
 };
 
 // Конфигурация рядов
 const updateClassroomLayout = async (classroomId, rowMapping) => {
-  await pool.query(`
-    INSERT INTO classroom_layouts (classroom_id, row_mapping)
-    VALUES ($1, $2)
-    ON CONFLICT (classroom_id)
-    DO UPDATE SET row_mapping = $2, updated_at = CURRENT_TIMESTAMP
-  `, [classroomId, JSON.stringify(rowMapping)]);
+  try {
+    await pool.query(`
+      INSERT INTO classroom_layouts (classroom_id, row_mapping)
+      VALUES ($1, $2)
+      ON CONFLICT (classroom_id)
+      DO UPDATE SET row_mapping = $2, updated_at = CURRENT_TIMESTAMP
+    `, [classroomId, JSON.stringify(rowMapping)]);
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'updateClassroomLayout';
+    throw error;
+  }
 };
 
 const getClassroomLayout = async (classroomId) => {
-  const result = await pool.query(
-    'SELECT row_mapping FROM classroom_layouts WHERE classroom_id = $1',
-    [classroomId]
-  );
-  return result.rows[0]?.row_mapping || null;
+  try {
+    const result = await pool.query(
+      'SELECT row_mapping FROM classroom_layouts WHERE classroom_id = $1',
+      [classroomId]
+    );
+    return result.rows[0]?.row_mapping || null;
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'getClassroomLayout';
+    throw error;
+  }
 };
 
 const deleteClassroomLayout = async (classroomId) => {
-  await pool.query('DELETE FROM classroom_layouts WHERE classroom_id = $1', [classroomId]);
+  try {
+    await pool.query('DELETE FROM classroom_layouts WHERE classroom_id = $1', [classroomId]);
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'deleteClassroomLayout';
+    throw error;
+  }
 };
 
 // Перемещение парт
 const moveDesk = async (classroomNumber, fromRow, fromDesk, toRow, toDesk) => {
-  const fromLeftLetter = RUSSIAN_LETTERS[(fromRow - 1) * 2];
-  const fromRightLetter = RUSSIAN_LETTERS[(fromRow - 1) * 2 + 1];
-  const toLeftLetter = RUSSIAN_LETTERS[(toRow - 1) * 2];
-  const toRightLetter = RUSSIAN_LETTERS[(toRow - 1) * 2 + 1];
+  try {
+    const fromLeftLetter = RUSSIAN_LETTERS[(fromRow - 1) * 2];
+    const fromRightLetter = RUSSIAN_LETTERS[(fromRow - 1) * 2 + 1];
+    const toLeftLetter = RUSSIAN_LETTERS[(toRow - 1) * 2];
+    const toRightLetter = RUSSIAN_LETTERS[(toRow - 1) * 2 + 1];
 
-  const fromPlaceLeft = `${fromDesk}${fromLeftLetter}`;
-  const fromPlaceRight = `${fromDesk}${fromRightLetter}`;
-  const toPlaceLeft = `${toDesk}${toLeftLetter}`;
-  const toPlaceRight = `${toDesk}${toRightLetter}`;
+    const fromPlaceLeft = `${fromDesk}${fromLeftLetter}`;
+    const fromPlaceRight = `${fromDesk}${fromRightLetter}`;
+    const toPlaceLeft = `${toDesk}${toLeftLetter}`;
+    const toPlaceRight = `${toDesk}${toRightLetter}`;
 
-  await pool.query(
-    'UPDATE Ученики SET номер_места = $1 WHERE номер_кабинета = $2 AND номер_места = $3',
-    [toPlaceLeft, classroomNumber, fromPlaceLeft]
-  );
+    await pool.query(
+      'UPDATE Ученики SET номер_места = $1 WHERE номер_кабинета = $2 AND номер_места = $3',
+      [toPlaceLeft, classroomNumber, fromPlaceLeft]
+    );
 
-  await pool.query(
-    'UPDATE Ученики SET номер_места = $1 WHERE номер_кабинета = $2 AND номер_места = $3',
-    [toPlaceRight, classroomNumber, fromPlaceRight]
-  );
+    await pool.query(
+      'UPDATE Ученики SET номер_места = $1 WHERE номер_кабинета = $2 AND номер_места = $3',
+      [toPlaceRight, classroomNumber, fromPlaceRight]
+    );
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'moveDesk';
+    throw error;
+  }
 };
 
 // Предметы
 const getSubjects = async () => {
-  const result = await pool.query('SELECT * FROM id_subject ORDER BY subject');
-  return result.rows;
+  try {
+    const result = await pool.query('SELECT * FROM id_subject ORDER BY subject');
+    return result.rows;
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'getSubjects';
+    throw error;
+  }
 };
 
 // Образовательные учреждения (OO)
 const getAllOO = async () => {
-  const result = await pool.query('SELECT * FROM oo ORDER BY id');
-  return result.rows;
+  try {
+    const result = await pool.query('SELECT * FROM oo ORDER BY id');
+    return result.rows;
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'getAllOO';
+    throw error;
+  }
 };
 
 const createOO = async (ooData) => {
-  const { code_omsu, code_oo, number_oo, name_oo, full_name } = ooData;
-  const result = await pool.query(
-    'INSERT INTO oo (code_omsu, code_oo, number_oo, name_oo, full_name) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-    [code_omsu || '', code_oo || '', number_oo || '', name_oo || '', full_name]
-  );
-  return result.rows[0];
+  try {
+    const { code_omsu, code_oo, number_oo, name_oo, full_name } = ooData;
+    const result = await pool.query(
+      'INSERT INTO oo (code_omsu, code_oo, number_oo, name_oo, full_name) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [code_omsu || '', code_oo || '', number_oo || '', name_oo || '', full_name]
+    );
+    return result.rows[0];
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'createOO';
+    throw error;
+  }
 };
 
 const updateOO = async (id, ooData) => {
-  const { code_omsu, code_oo, number_oo, name_oo, full_name } = ooData;
+  try {
+    const { code_omsu, code_oo, number_oo, name_oo, full_name } = ooData;
 
-  const hasUpdatedAt = await checkColumnExists('oo', 'updated_at');
-  const query = hasUpdatedAt ?
-    'UPDATE oo SET code_omsu = $1, code_oo = $2, number_oo = $3, name_oo = $4, full_name = $5, updated_at = CURRENT_TIMESTAMP WHERE id = $6 RETURNING *' :
-    'UPDATE oo SET code_omsu = $1, code_oo = $2, number_oo = $3, name_oo = $4, full_name = $5 WHERE id = $6 RETURNING *';
+    const hasUpdatedAt = await checkColumnExists('oo', 'updated_at');
+    const query = hasUpdatedAt ?
+      'UPDATE oo SET code_omsu = $1, code_oo = $2, number_oo = $3, name_oo = $4, full_name = $5, updated_at = CURRENT_TIMESTAMP WHERE id = $6 RETURNING *' :
+      'UPDATE oo SET code_omsu = $1, code_oo = $2, number_oo = $3, name_oo = $4, full_name = $5 WHERE id = $6 RETURNING *';
 
-  const result = await pool.query(query, [
-    code_omsu || '', code_oo || '', number_oo || '', name_oo || '', full_name, id
-  ]);
-  return result.rows[0];
+    const result = await pool.query(query, [
+      code_omsu || '', code_oo || '', number_oo || '', name_oo || '', full_name, id
+    ]);
+    return result.rows[0];
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'updateOO';
+    throw error;
+  }
 };
 
 const deleteOO = async (id) => {
-  const result = await pool.query('DELETE FROM oo WHERE id = $1 RETURNING *', [id]);
-  return result.rows[0];
+  try {
+    const result = await pool.query('DELETE FROM oo WHERE id = $1 RETURNING *', [id]);
+    return result.rows[0];
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'deleteOO';
+    throw error;
+  }
 };
 
 // Школы
 const getSchoolByName = async (code) => {
-  const result = await pool.query('SELECT * FROM schools WHERE code = $1', [code]);
-  return result.rows[0] || null;
+  try {
+    const result = await pool.query('SELECT * FROM schools WHERE code = $1', [code]);
+    return result.rows[0] || null;
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'getSchoolByName';
+    throw error;
+  }
 };
 
 const getAllSchools = async () => {
-  const result = await pool.query('SELECT * FROM schools ORDER BY name');
-  return result.rows;
+  try {
+    const result = await pool.query('SELECT * FROM schools ORDER BY name');
+    return result.rows;
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'getAllSchools';
+    throw error;
+  }
 };
 
 const createSchool = async (code, name, address = '') => {
-  const result = await pool.query(
-    'INSERT INTO schools (code, name, address) VALUES ($1, $2, $3) RETURNING *',
-    [code, name, address]
-  );
-  return result.rows[0];
+  try {
+    const result = await pool.query(
+      'INSERT INTO schools (code, name, address) VALUES ($1, $2, $3) RETURNING *',
+      [code, name, address]
+    );
+    return result.rows[0];
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'createSchool';
+    throw error;
+  }
 };
 
 const updateSchool = async (id, code, name, address = '') => {
-  const result = await pool.query(
-    'UPDATE schools SET code = $1, name = $2, address = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 RETURNING *',
-    [code, name, address, id]
-  );
-  return result.rows[0];
+  try {
+    const result = await pool.query(
+      'UPDATE schools SET code = $1, name = $2, address = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 RETURNING *',
+      [code, name, address, id]
+    );
+    return result.rows[0];
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'updateSchool';
+    throw error;
+  }
 };
 
 const deleteSchool = async (id) => {
-  const result = await pool.query('DELETE FROM schools WHERE id = $1 RETURNING *', [id]);
-  return result.rows[0];
+  try {
+    const result = await pool.query('DELETE FROM schools WHERE id = $1 RETURNING *', [id]);
+    return result.rows[0];
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'deleteSchool';
+    throw error;
+  }
 };
 
 // Проверка здоровья
 const healthCheck = async () => {
-  await pool.query('SELECT 1');
-  return true;
+  try {
+    await pool.query('SELECT 1');
+    return true;
+  } catch (error) {
+    if (error instanceof Error && !error.operation) error.operation = 'healthCheck';
+    throw error;
+  }
 };
 
 // ========== ЭКСПОРТ ==========
